@@ -1,0 +1,14 @@
+{
+  "name": "meu-caixa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA local-first para controle financeiro pessoal em formato de conversa.",
+  "scripts": {
+    "check": "node --check app.js"
+  },
+  "keywords": [
+    "pwa",
+    "financas",
+    "local-first"
+  ]
+}

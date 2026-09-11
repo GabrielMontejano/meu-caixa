@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101820" />
+    <meta
+      name="description"
+      content="Meu Caixa registra entradas e saidas em formato de conversa, com dados salvos somente no aparelho."
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <title>Meu Caixa</title>
+    <link rel="stylesheet" href="./styles.css?v=3" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">MC</span>
+          <div>
+            <h1>Meu Caixa</h1>
+            <p>Controle simples, privado e direto.</p>
+          </div>
+        </div>
+        <button class="ghost-button" id="backupButton" type="button">Backup</button>
+      </header>
+
+      <main>
+        <section class="month-card" aria-live="polite">
+          <div>
+            <span id="monthLabel">Saldo do mes</span>
+            <strong id="monthBalance">R$ 0,00</strong>
+          </div>
+          <p id="monthResume">Sem lancamentos neste mes.</p>
+        </section>
+
+        <nav class="tabs" aria-label="Telas do app">
+          <button class="tab-button active" data-screen="launch" type="button">Lancar</button>
+          <button class="tab-button" data-screen="report" type="button">Relatorio</button>
+        </nav>
+
+        <section class="screen active" id="launchScreen">
+          <div class="chat-panel">
+            <div class="messages" id="messages" aria-live="polite"></div>
+            <form class="composer" id="entryForm">
+              <textarea
+                id="entryInput"
+                rows="2"
+                autocomplete="off"
+                placeholder="Ex: gastei 300 reais em gasolina ontem"
+              ></textarea>
+              <button class="primary-button" type="submit">Enviar</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="screen" id="reportScreen">
+          <div class="report-panel">
+            <div class="filters">
+              <label>
+                Inicio
+                <input id="filterStart" type="date" />
+              </label>
+              <label>
+                Fim
+                <input id="filterEnd" type="date" />
+              </label>
+              <label>
+                Tipo
+                <select id="filterType">
+                  <option value="todos">Todos</option>
+                  <option value="entrada">Entrada</option>
+                  <option value="saida">Saida</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="report-summary">
+              <div>
+                <span>Entradas</span>
+                <strong id="reportIncome">R$ 0,00</strong>
+              </div>
+              <div>
+                <span>Saidas</span>
+                <strong id="reportExpense">R$ 0,00</strong>
+              </div>
+              <div>
+                <span>Saldo</span>
+                <strong id="reportBalance">R$ 0,00</strong>
+              </div>
+            </div>
+
+            <button class="primary-button full" id="pdfButton" type="button">Exportar PDF</button>
+            <div class="transactions-list" id="transactionsList"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="backup-dialog" id="backupDialog">
+      <form method="dialog">
+        <div class="dialog-header">
+          <h2>Backup</h2>
+          <button class="icon-button" value="close" aria-label="Fechar" type="submit">x</button>
+        </div>
+        <p>Backup restaura os dados no app. PDF e apenas relatorio.</p>
+        <div class="dialog-actions">
+          <button class="primary-button" id="exportBackupButton" value="close" type="button">
+            Baixar backup
+          </button>
+          <label class="file-button">
+            Restaurar backup
+            <input id="importBackupInput" type="file" accept="application/json,.json" />
+          </label>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./app.js?v=3" defer></script>
+  </body>
+</html>
