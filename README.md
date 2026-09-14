@@ -17,6 +17,14 @@ Os lancamentos ficam somente no armazenamento local do navegador do aparelho, us
 - `valorTotalParcelado`
 - `textoOriginal`
 
+## Fluxo principal
+
+- Home com saldo do mes e tres botoes: Lancar, Relatorio e Alterar
+- Lancar salva automaticamente a frase entendida pelo app
+- A resposta do chat mostra um botao Alterar para corrigir o lancamento
+- Alterar lista todos os lancamentos por data e permite editar tipo, valor, data e nota
+- Relatorio filtra por data e tipo e exporta PDF
+
 ## Rodar local
 
 ```powershell

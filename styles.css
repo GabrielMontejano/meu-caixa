@@ -65,6 +65,21 @@ button {
   min-width: 0;
 }
 
+.back-button {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  flex: 0 0 auto;
+  font-weight: 850;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.hidden {
+  display: none !important;
+}
+
 .brand-mark {
   align-items: center;
   background: var(--cyan);
@@ -138,7 +153,8 @@ button {
 
 .month-card,
 .chat-panel,
-.report-panel {
+.report-panel,
+.edit-panel {
   background: rgba(23, 37, 50, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -194,25 +210,48 @@ button {
   color: var(--red);
 }
 
-.tabs {
-  background: rgba(7, 16, 23, 0.72);
+.home-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.home-action {
+  background: rgba(23, 37, 50, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 12px;
-  padding: 4px;
-}
-
-.tab-button {
-  background: transparent;
-  color: var(--muted);
-}
-
-.tab-button.active {
-  background: var(--panel-strong);
+  box-shadow: var(--shadow);
   color: var(--text);
+  display: grid;
+  gap: 6px;
+  min-height: 96px;
+  padding: 18px;
+  text-align: left;
+}
+
+.home-action strong {
+  font-size: 1.18rem;
+}
+
+.home-action span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.page-title {
+  margin: 0 0 12px;
+}
+
+.page-title span {
+  color: var(--cyan);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.page-title h2 {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  margin: 4px 0 0;
 }
 
 .screen {
@@ -224,7 +263,8 @@ button {
 }
 
 .chat-panel,
-.report-panel {
+.report-panel,
+.edit-panel {
   min-height: calc(100vh - 270px);
   overflow: hidden;
 }
@@ -293,10 +333,15 @@ button {
 }
 
 .confirm-actions,
+.message-actions,
 .edit-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.message-actions {
+  margin-top: 10px;
 }
 
 .small-button {
@@ -311,12 +356,14 @@ button {
   color: #ffd2d9;
 }
 
-.edit-form {
+.edit-form,
+.saved-edit-form {
   display: grid;
   gap: 10px;
 }
 
 .edit-form label,
+.saved-edit-form label,
 .filters label {
   color: var(--muted);
   display: grid;
@@ -327,6 +374,8 @@ button {
 
 .edit-form input,
 .edit-form select,
+.saved-edit-form input,
+.saved-edit-form select,
 .filters input,
 .filters select,
 .composer textarea {
@@ -342,6 +391,8 @@ button {
 
 .edit-form input:focus,
 .edit-form select:focus,
+.saved-edit-form input:focus,
+.saved-edit-form select:focus,
 .filters input:focus,
 .filters select:focus,
 .composer textarea:focus {
@@ -364,8 +415,26 @@ button {
   resize: none;
 }
 
-.report-panel {
+.report-panel,
+.edit-panel {
   padding: 14px;
+}
+
+.edit-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.edit-list {
+  display: grid;
+  gap: 8px;
+}
+
+.saved-edit-form {
+  background: rgba(7, 16, 23, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .filters {
@@ -524,6 +593,14 @@ button {
   .composer {
     grid-template-columns: 1fr;
   }
+
+  .app-header {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    display: none;
+  }
 }
 
 @media (min-width: 720px) {
@@ -531,31 +608,8 @@ button {
     padding: 28px 22px;
   }
 
-  main {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: 310px minmax(0, 1fr);
-  }
-
-  .month-card {
-    align-self: start;
-    margin-bottom: 0;
-    position: sticky;
-    top: 22px;
-  }
-
-  .tabs,
-  .screen {
-    grid-column: 2;
-  }
-
-  .tabs {
-    grid-row: 1;
-  }
-
-  .screen.active {
-    display: block;
-    grid-row: 2;
+  .home-actions {
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .filters {
@@ -563,7 +617,8 @@ button {
   }
 
   .chat-panel,
-  .report-panel {
+  .report-panel,
+  .edit-panel {
     min-height: 640px;
   }
 
@@ -579,12 +634,11 @@ button {
     max-width: 1120px;
   }
 
-  main {
-    gap: 18px;
-    grid-template-columns: 360px minmax(0, 1fr);
-  }
-
   .brand h1 {
     font-size: 1.65rem;
+  }
+
+  .month-card {
+    padding: 22px;
   }
 }

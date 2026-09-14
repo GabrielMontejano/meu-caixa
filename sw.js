@@ -1,9 +1,9 @@
-const CACHE_NAME = "meu-caixa-v4";
+const CACHE_NAME = "meu-caixa-v5";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=4",
+  "./app.js?v=4",
   "./manifest.webmanifest",
   "./favicon.svg",
   "./icon.svg",

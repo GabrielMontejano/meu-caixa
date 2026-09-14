@@ -7,8 +7,13 @@ const state = {
   db: null,
   lancamentos: [],
   messages: [],
-  pending: null,
-  editingMessageId: null,
+};
+
+const subtitles = {
+  home: "Controle simples, privado e direto.",
+  launch: "Lance por conversa.",
+  report: "Consulte e exporte.",
+  edit: "Corrija lancamentos salvos.",
 };
 
 const money = new Intl.NumberFormat("pt-BR", {
@@ -17,6 +22,8 @@ const money = new Intl.NumberFormat("pt-BR", {
 });
 
 const els = {
+  backButton: document.querySelector("#backButton"),
+  screenSubtitle: document.querySelector("#screenSubtitle"),
   monthLabel: document.querySelector("#monthLabel"),
   monthBalance: document.querySelector("#monthBalance"),
   monthResume: document.querySelector("#monthResume"),
@@ -31,6 +38,14 @@ const els = {
   reportExpense: document.querySelector("#reportExpense"),
   reportBalance: document.querySelector("#reportBalance"),
   transactionsList: document.querySelector("#transactionsList"),
+  editList: document.querySelector("#editList"),
+  savedEditForm: document.querySelector("#savedEditForm"),
+  editId: document.querySelector("#editId"),
+  editType: document.querySelector("#editType"),
+  editAmount: document.querySelector("#editAmount"),
+  editDate: document.querySelector("#editDate"),
+  editNote: document.querySelector("#editNote"),
+  cancelSavedEdit: document.querySelector("#cancelSavedEdit"),
   pdfButton: document.querySelector("#pdfButton"),
   backupButton: document.querySelector("#backupButton"),
   backupDialog: document.querySelector("#backupDialog"),
@@ -125,10 +140,12 @@ function parseCurrency(raw) {
   if (!cleaned) return 0;
   const comma = cleaned.lastIndexOf(",");
   const dot = cleaned.lastIndexOf(".");
-  if (comma > dot) {
-    return Number(cleaned.replace(/\./g, "").replace(",", "."));
-  }
+  if (comma > dot) return Number(cleaned.replace(/\./g, "").replace(",", "."));
   return Number(cleaned.replace(/,/g, ""));
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 function formatDate(dateString) {
@@ -149,10 +166,10 @@ function monthName(date = today()) {
 
 function inferTipo(text) {
   const normalized = normalizeText(text);
-  const entradaWords = ["recebi", "receber", "ganhei", "ganho", "entrou", "entrada", "salario", "pix recebido", "deposito"];
-  const saidaWords = ["gastei", "paguei", "comprei", "saida", "saiu", "despesa", "conta", "parcelei", "cartao"];
-  if (entradaWords.some((word) => normalized.includes(word))) return "entrada";
-  if (saidaWords.some((word) => normalized.includes(word))) return "saida";
+  const entradas = ["recebi", "receber", "ganhei", "ganho", "entrou", "entrada", "salario", "deposito", "vendi"];
+  const saidas = ["gastei", "paguei", "comprei", "saida", "saiu", "despesa", "conta", "parcelei", "cartao"];
+  if (entradas.some((word) => normalized.includes(word))) return "entrada";
+  if (saidas.some((word) => normalized.includes(word))) return "saida";
   return "saida";
 }
 
@@ -168,9 +185,7 @@ function inferDate(text) {
     base.setDate(base.getDate() + 1);
     return toDateInputValue(base);
   }
-  if (normalized.includes("hoje")) {
-    return toDateInputValue(base);
-  }
+  if (normalized.includes("hoje")) return toDateInputValue(base);
 
   const slashMatch = normalized.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
   if (slashMatch) {
@@ -184,8 +199,7 @@ function inferDate(text) {
 
   const dayMatch = normalized.match(/\bdia\s+(\d{1,2})\b/);
   if (dayMatch) {
-    const day = Number(dayMatch[1]);
-    return toDateInputValue(new Date(base.getFullYear(), base.getMonth(), day));
+    return toDateInputValue(new Date(base.getFullYear(), base.getMonth(), Number(dayMatch[1])));
   }
 
   return toDateInputValue(base);
@@ -214,14 +228,14 @@ function inferNote(text) {
   let note = text;
   note = note.replace(/r\$\s*[\d.,]+/gi, " ");
   note = note.replace(/\b[\d.,]+\s*(reais|real)\b/gi, " ");
-  note = note.replace(/\b(gastei|paguei|comprei|recebi|ganhei|entrou|entrada|saida|despesa|parcelei|lancei|lançar|lancar)\b/gi, " ");
+  note = note.replace(/\b(gastei|paguei|comprei|recebi|ganhei|entrou|entrada|saida|despesa|parcelei|lancei|lançar|lancar|vendi)\b/gi, " ");
   note = note.replace(/\b(hoje|ontem|amanha|amanhã)\b/gi, " ");
   note = note.replace(/\bdia\s+\d{1,2}\b/gi, " ");
   note = note.replace(/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/g, " ");
   note = note.replace(/\b\d+(?:[,.]\d{1,2})?\b/, " ");
   note = note.replace(/\bem\s+\d{1,2}\s*(x|vezes|parcelas)?/gi, " ");
   note = note.replace(/\b\d{1,2}\s*(x|vezes|parcelas)\b/gi, " ");
-  note = note.replace(/\b(no|na|em|de|do|da|para|por|com)\b/gi, " ");
+  note = note.replace(/\b(no|na|em|de|do|da|para|por|com|o|a)\b/gi, " ");
   return note.replace(/\s+/g, " ").trim() || "sem nota";
 }
 
@@ -241,10 +255,6 @@ function parseLancamento(text) {
   };
 }
 
-function roundMoney(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
-}
-
 function buildLancamentosFromDraft(draft) {
   const now = new Date().toISOString();
   const total = Number(draft.parcelasTotal || 1);
@@ -257,12 +267,26 @@ function buildLancamentosFromDraft(draft) {
     nota: draft.nota || "sem nota",
     dataOperacao: toDateInputValue(addMonths(firstDate, index)),
     dataCriacao: now,
+    dataAtualizacao: null,
     textoOriginal: draft.textoOriginal,
     parcelasTotal: total > 1 ? total : undefined,
     parcelaNumero: total > 1 ? index + 1 : undefined,
     grupoParcelamentoId: groupId,
     valorTotalParcelado: total > 1 ? roundMoney(draft.valorTotalParcelado || draft.valor * total) : undefined,
   }));
+}
+
+function navigate(screen, options = {}) {
+  document.querySelectorAll(".screen").forEach((item) => item.classList.remove("active"));
+  document.querySelector(`#${screen}Screen`).classList.add("active");
+  els.backButton.classList.toggle("hidden", screen === "home");
+  els.screenSubtitle.textContent = subtitles[screen] || subtitles.home;
+
+  if (screen === "launch") setTimeout(() => els.entryInput.focus(), 50);
+  if (screen === "edit") {
+    renderEditList();
+    if (options.editId) openSavedEdit(options.editId);
+  }
 }
 
 function addMessage(message) {
@@ -274,15 +298,17 @@ function addMessage(message) {
   renderMessages();
 }
 
-function summaryText(draft) {
+function savedText(items) {
+  const first = items[0];
   const lines = [
-    `${draft.tipo === "entrada" ? "Entrada" : "Saida"}: ${money.format(draft.valor)}`,
-    `Data: ${formatDate(draft.dataOperacao)}`,
-    `Nota: ${draft.nota}`,
+    "Salvo.",
+    `${first.tipo === "entrada" ? "Entrada" : "Saida"}: ${money.format(first.valor)}`,
+    `Data: ${formatDate(first.dataOperacao)}`,
+    `Nota: ${first.nota}`,
   ];
-  if (draft.parcelasTotal > 1) {
-    lines.push(`Parcelas: ${draft.parcelasTotal}x`);
-    lines.push(`Total parcelado: ${money.format(draft.valorTotalParcelado)}`);
+  if (items.length > 1) {
+    lines.push(`Parcelas: ${items.length}x`);
+    lines.push(`Total: ${money.format(first.valorTotalParcelado)}`);
   }
   return lines.join("\n");
 }
@@ -292,7 +318,7 @@ function renderMessages() {
   if (!state.messages.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "Escreva ou dite pelo teclado do iPhone. Eu confirmo antes de salvar.";
+    empty.textContent = "Escreva ou dite pelo teclado do iPhone. Eu salvo e deixo pronto para alterar se precisar.";
     els.messages.append(empty);
     return;
   }
@@ -300,17 +326,15 @@ function renderMessages() {
   state.messages.forEach((message) => {
     const item = document.createElement("div");
     item.className = `message ${message.sender}`;
-    item.dataset.id = message.id;
+    const p = document.createElement("p");
+    p.textContent = message.text;
+    item.append(p);
 
-    if (message.kind === "confirm") {
-      item.append(renderConfirmCard(message));
-    } else if (message.kind === "edit") {
-      item.append(renderEditForm(message));
-    } else {
-      const p = document.createElement("p");
-      p.textContent = message.text;
-      item.append(p);
-      if (message.sender === "user") attachLongPressEdit(item, message);
+    if (message.editId) {
+      const actions = document.createElement("div");
+      actions.className = "message-actions";
+      actions.append(button("Alterar", "small-button", () => navigate("edit", { editId: message.editId })));
+      item.append(actions);
     }
 
     const time = document.createElement("span");
@@ -326,113 +350,6 @@ function renderMessages() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
-function renderConfirmCard(message) {
-  const card = document.createElement("div");
-  card.className = "confirm-card";
-  const title = document.createElement("p");
-  title.textContent = "Entendi. Vou salvar:";
-  card.append(title);
-
-  const grid = document.createElement("div");
-  grid.className = "confirm-grid";
-  [
-    ["Tipo", message.draft.tipo === "entrada" ? "Entrada" : "Saida"],
-    ["Valor", money.format(message.draft.valor)],
-    ["Data", formatDate(message.draft.dataOperacao)],
-    ["Nota", message.draft.nota],
-  ].forEach(([label, value]) => {
-    const row = document.createElement("div");
-    row.className = "confirm-row";
-    row.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
-    grid.append(row);
-  });
-
-  if (message.draft.parcelasTotal > 1) {
-    const row = document.createElement("div");
-    row.className = "confirm-row";
-    row.innerHTML = `<span>Parcelas</span><strong>${message.draft.parcelasTotal}x de ${money.format(message.draft.valor)}</strong>`;
-    grid.append(row);
-  }
-  card.append(grid);
-
-  const actions = document.createElement("div");
-  actions.className = "confirm-actions";
-  actions.append(
-    button("Confirmar", "small-button", () => confirmPending(message.id)),
-    button("Editar", "small-button", () => editPending(message.id)),
-    button("Cancelar", "small-button danger", () => cancelPending(message.id))
-  );
-  card.append(actions);
-  return card;
-}
-
-function renderEditForm(message) {
-  const form = document.createElement("form");
-  form.className = "edit-form";
-  form.innerHTML = `
-    <label>Tipo
-      <select name="tipo">
-        <option value="entrada">Entrada</option>
-        <option value="saida">Saida</option>
-      </select>
-    </label>
-    <label>Valor da parcela/lancamento
-      <input name="valor" inputmode="decimal" required />
-    </label>
-    <label>Data da operacao
-      <input name="dataOperacao" type="date" required />
-    </label>
-    <label>Nota
-      <input name="nota" required />
-    </label>
-    <label>Parcelas
-      <input name="parcelasTotal" inputmode="numeric" min="1" max="72" type="number" />
-    </label>
-    <label>Total parcelado
-      <input name="valorTotalParcelado" inputmode="decimal" />
-    </label>
-    <div class="edit-actions"></div>
-  `;
-  form.tipo.value = message.draft.tipo;
-  form.valor.value = String(message.draft.valor).replace(".", ",");
-  form.dataOperacao.value = message.draft.dataOperacao;
-  form.nota.value = message.draft.nota;
-  form.parcelasTotal.value = message.draft.parcelasTotal || 1;
-  form.valorTotalParcelado.value = message.draft.valorTotalParcelado
-    ? String(message.draft.valorTotalParcelado).replace(".", ",")
-    : "";
-
-  const actions = form.querySelector(".edit-actions");
-  actions.append(
-    button("Salvar alteracao", "small-button", null, "submit"),
-    button("Cancelar", "small-button danger", () => cancelPending(message.id))
-  );
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const parcelasTotal = Math.max(1, Math.min(72, Number(form.parcelasTotal.value || 1)));
-    const nextDraft = {
-      ...message.draft,
-      tipo: form.tipo.value,
-      valor: roundMoney(parseCurrency(form.valor.value)),
-      dataOperacao: form.dataOperacao.value,
-      nota: form.nota.value.trim() || "sem nota",
-      parcelasTotal,
-      valorTotalParcelado: parcelasTotal > 1
-        ? roundMoney(parseCurrency(form.valorTotalParcelado.value) || parseCurrency(form.valor.value) * parcelasTotal)
-        : undefined,
-    };
-    state.pending = nextDraft;
-    state.messages = state.messages.filter((item) => item.id !== message.id);
-    addMessage({
-      sender: "bot",
-      kind: "confirm",
-      draft: nextDraft,
-    });
-  });
-  return form;
-}
-
 function button(text, className, onClick, type = "button") {
   const btn = document.createElement("button");
   btn.type = type;
@@ -442,53 +359,27 @@ function button(text, className, onClick, type = "button") {
   return btn;
 }
 
-function attachLongPressEdit(element, message) {
-  let timer;
-  const start = () => {
-    timer = window.setTimeout(() => {
-      els.entryInput.value = message.text;
-      els.entryInput.focus();
-    }, 650);
-  };
-  const stop = () => window.clearTimeout(timer);
-  element.addEventListener("pointerdown", start);
-  element.addEventListener("pointerup", stop);
-  element.addEventListener("pointerleave", stop);
-}
+async function createFromChat(text) {
+  addMessage({ sender: "user", text });
+  const draft = parseLancamento(text);
 
-async function confirmPending(messageId) {
-  const message = state.messages.find((item) => item.id === messageId);
-  if (!message?.draft) return;
-  const nextItems = buildLancamentosFromDraft(message.draft);
+  if (!draft.valor) {
+    addMessage({
+      sender: "bot",
+      text: "Nao encontrei o valor. Tente algo como: gastei 80 reais no mercado.",
+    });
+    return;
+  }
+
+  const nextItems = buildLancamentosFromDraft(draft);
   await saveLancamentos(nextItems);
   state.lancamentos = [...state.lancamentos, ...nextItems];
-  state.pending = null;
-  state.messages = state.messages.filter((item) => item.id !== messageId);
   addMessage({
     sender: "bot",
-    kind: "text",
-    text: nextItems.length > 1
-      ? `Salvo. Lancei ${nextItems.length} parcelas nos meses corretos.`
-      : "Lancamento salvo.",
+    text: savedText(nextItems),
+    editId: nextItems[0].id,
   });
   refresh();
-}
-
-function editPending(messageId) {
-  const message = state.messages.find((item) => item.id === messageId);
-  if (!message?.draft) return;
-  state.messages = state.messages.filter((item) => item.id !== messageId);
-  addMessage({
-    sender: "bot",
-    kind: "edit",
-    draft: message.draft,
-  });
-}
-
-function cancelPending(messageId) {
-  state.messages = state.messages.filter((item) => item.id !== messageId);
-  state.pending = null;
-  addMessage({ sender: "bot", kind: "text", text: "Cancelado. Nada foi salvo." });
 }
 
 function filteredLancamentos() {
@@ -500,12 +391,17 @@ function filteredLancamentos() {
   return state.lancamentos
     .filter((item) => {
       const date = parseInputDate(item.dataOperacao);
-      const byStart = !start || date >= start;
-      const byEnd = !end || date <= end;
-      const byType = type === "todos" || item.tipo === type;
-      return byStart && byEnd && byType;
+      return (!start || date >= start) && (!end || date <= end) && (type === "todos" || item.tipo === type);
     })
     .sort((a, b) => b.dataOperacao.localeCompare(a.dataOperacao));
+}
+
+function sortedLancamentos() {
+  return [...state.lancamentos].sort((a, b) => {
+    const byDate = b.dataOperacao.localeCompare(a.dataOperacao);
+    if (byDate) return byDate;
+    return (b.dataCriacao || "").localeCompare(a.dataCriacao || "");
+  });
 }
 
 function calcTotals(items) {
@@ -554,24 +450,86 @@ function renderReport() {
     return;
   }
 
-  items.forEach((item) => {
-    const row = document.createElement("div");
-    row.className = "transaction-item";
-    const parcela = item.parcelasTotal ? ` ${item.parcelaNumero}/${item.parcelasTotal}` : "";
-    row.innerHTML = `
-      <div>
-        <strong>${item.nota}</strong>
-        <small>${formatDate(item.dataOperacao)}${parcela}</small>
-      </div>
-      <strong class="${item.tipo}">${item.tipo === "entrada" ? "+" : "-"} ${money.format(item.valor)}</strong>
-    `;
-    els.transactionsList.append(row);
-  });
+  items.forEach((item) => els.transactionsList.append(transactionRow(item, false)));
+}
+
+function transactionRow(item, editable) {
+  const row = document.createElement("div");
+  row.className = "transaction-item";
+  const parcela = item.parcelasTotal ? ` ${item.parcelaNumero}/${item.parcelasTotal}` : "";
+
+  const details = document.createElement("div");
+  const note = document.createElement("strong");
+  note.textContent = item.nota;
+  const date = document.createElement("small");
+  date.textContent = `${formatDate(item.dataOperacao)}${parcela}`;
+  details.append(note, date);
+
+  const value = document.createElement("strong");
+  value.className = item.tipo;
+  value.textContent = `${item.tipo === "entrada" ? "+" : "-"} ${money.format(item.valor)}`;
+
+  row.append(details, value);
+  if (editable) {
+    row.append(button("Alterar", "small-button", () => openSavedEdit(item.id)));
+  }
+  return row;
+}
+
+function renderEditList() {
+  els.editList.innerHTML = "";
+  const items = sortedLancamentos();
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Nenhum lancamento salvo ainda.";
+    els.editList.append(empty);
+    els.savedEditForm.classList.add("hidden");
+    return;
+  }
+
+  items.forEach((item) => els.editList.append(transactionRow(item, true)));
+}
+
+function openSavedEdit(itemId) {
+  const item = state.lancamentos.find((entry) => entry.id === itemId);
+  if (!item) return;
+  els.editId.value = item.id;
+  els.editType.value = item.tipo;
+  els.editAmount.value = String(item.valor).replace(".", ",");
+  els.editDate.value = item.dataOperacao;
+  els.editNote.value = item.nota;
+  els.savedEditForm.classList.remove("hidden");
+  els.savedEditForm.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function saveEditedLancamento(event) {
+  event.preventDefault();
+  const item = state.lancamentos.find((entry) => entry.id === els.editId.value);
+  if (!item) return;
+
+  const updated = {
+    ...item,
+    tipo: els.editType.value,
+    valor: roundMoney(parseCurrency(els.editAmount.value)),
+    dataOperacao: els.editDate.value,
+    nota: els.editNote.value.trim() || "sem nota",
+    dataAtualizacao: new Date().toISOString(),
+  };
+
+  await saveLancamentos([updated]);
+  state.lancamentos = state.lancamentos.map((entry) => (entry.id === updated.id ? updated : entry));
+  els.savedEditForm.classList.add("hidden");
+  addMessage({ sender: "bot", text: "Alteracao realizada e salva." });
+  refresh();
+  renderEditList();
 }
 
 function refresh() {
   renderMonthCard();
   renderReport();
+  renderEditList();
 }
 
 function downloadBlob(blob, filename) {
@@ -605,12 +563,12 @@ async function importBackup(file) {
   }
   await replaceLancamentos(payload.lancamentos);
   state.lancamentos = payload.lancamentos;
-  addMessage({ sender: "bot", kind: "text", text: "Backup restaurado." });
+  addMessage({ sender: "bot", text: "Backup restaurado." });
   refresh();
 }
 
 function escapePdfText(text) {
-  return String(text).replace(/[\\()]/g, "\\$&");
+  return String(text).replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, " ");
 }
 
 function makePdf(lines) {
@@ -665,8 +623,7 @@ function exportPdf() {
       return `${formatDate(item.dataOperacao)} | ${item.tipo}${parcela} | ${sign}${money.format(item.valor)} | ${item.nota}`;
     }),
   ];
-  const blob = makePdf(lines);
-  downloadBlob(blob, `meu-caixa-relatorio-${toDateInputValue(today())}.pdf`);
+  downloadBlob(makePdf(lines), `meu-caixa-relatorio-${toDateInputValue(today())}.pdf`);
 }
 
 function setDefaultFilters() {
@@ -676,38 +633,26 @@ function setDefaultFilters() {
 }
 
 function bindEvents() {
-  document.querySelectorAll(".tab-button").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab-button").forEach((item) => item.classList.remove("active"));
-      document.querySelectorAll(".screen").forEach((item) => item.classList.remove("active"));
-      tab.classList.add("active");
-      document.querySelector(`#${tab.dataset.screen}Screen`).classList.add("active");
-    });
+  document.querySelectorAll("[data-screen]").forEach((button) => {
+    button.addEventListener("click", () => navigate(button.dataset.screen));
   });
+
+  els.backButton.addEventListener("click", () => navigate("home"));
 
   els.entryForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const text = els.entryInput.value.trim();
     if (!text) return;
     els.entryInput.value = "";
-    addMessage({ sender: "user", kind: "text", text });
-    const draft = parseLancamento(text);
-    if (!draft.valor) {
-      addMessage({
-        sender: "bot",
-        kind: "text",
-        text: "Nao encontrei o valor. Tente algo como: gastei 80 reais no mercado.",
-      });
-      return;
-    }
-    state.pending = draft;
-    addMessage({ sender: "bot", kind: "confirm", draft });
+    createFromChat(text);
   });
 
   [els.filterStart, els.filterEnd, els.filterType].forEach((input) => {
     input.addEventListener("change", renderReport);
   });
 
+  els.savedEditForm.addEventListener("submit", saveEditedLancamento);
+  els.cancelSavedEdit.addEventListener("click", () => els.savedEditForm.classList.add("hidden"));
   els.pdfButton.addEventListener("click", exportPdf);
   els.backupButton.addEventListener("click", () => els.backupDialog.showModal());
   els.exportBackupButton.addEventListener("click", exportBackup);

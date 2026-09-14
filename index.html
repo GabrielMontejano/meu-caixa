@@ -12,36 +12,53 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>Meu Caixa</title>
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
   </head>
   <body>
     <div class="app-shell">
       <header class="app-header">
+        <button class="back-button hidden" id="backButton" type="button">Voltar</button>
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">MC</span>
           <div>
             <h1>Meu Caixa</h1>
-            <p>Controle simples, privado e direto.</p>
+            <p id="screenSubtitle">Controle simples, privado e direto.</p>
           </div>
         </div>
         <button class="ghost-button" id="backupButton" type="button">Backup</button>
       </header>
 
       <main>
-        <section class="month-card" aria-live="polite">
-          <div>
-            <span id="monthLabel">Saldo do mes</span>
-            <strong id="monthBalance">R$ 0,00</strong>
-          </div>
-          <p id="monthResume">Sem lancamentos neste mes.</p>
+        <section class="screen active" id="homeScreen">
+          <section class="month-card" aria-live="polite">
+            <div>
+              <span id="monthLabel">Saldo do mes</span>
+              <strong id="monthBalance">R$ 0,00</strong>
+            </div>
+            <p id="monthResume">Sem lancamentos neste mes.</p>
+          </section>
+
+          <nav class="home-actions" aria-label="Acoes principais">
+            <button class="home-action" data-screen="launch" type="button">
+              <strong>Lancar</strong>
+              <span>Registrar por conversa</span>
+            </button>
+            <button class="home-action" data-screen="report" type="button">
+              <strong>Relatorio</strong>
+              <span>Filtrar e exportar PDF</span>
+            </button>
+            <button class="home-action" data-screen="edit" type="button">
+              <strong>Alterar</strong>
+              <span>Editar lancamentos salvos</span>
+            </button>
+          </nav>
         </section>
 
-        <nav class="tabs" aria-label="Telas do app">
-          <button class="tab-button active" data-screen="launch" type="button">Lancar</button>
-          <button class="tab-button" data-screen="report" type="button">Relatorio</button>
-        </nav>
-
-        <section class="screen active" id="launchScreen">
+        <section class="screen" id="launchScreen">
+          <div class="page-title">
+            <span>Lancar</span>
+            <h2>Novo lancamento</h2>
+          </div>
           <div class="chat-panel">
             <div class="messages" id="messages" aria-live="polite"></div>
             <form class="composer" id="entryForm">
@@ -57,6 +74,10 @@
         </section>
 
         <section class="screen" id="reportScreen">
+          <div class="page-title">
+            <span>Relatorio</span>
+            <h2>Resumo por periodo</h2>
+          </div>
           <div class="report-panel">
             <div class="filters">
               <label>
@@ -96,6 +117,42 @@
             <div class="transactions-list" id="transactionsList"></div>
           </div>
         </section>
+
+        <section class="screen" id="editScreen">
+          <div class="page-title">
+            <span>Alterar</span>
+            <h2>Lancamentos salvos</h2>
+          </div>
+          <div class="edit-panel">
+            <div class="edit-list" id="editList"></div>
+            <form class="saved-edit-form hidden" id="savedEditForm">
+              <input id="editId" type="hidden" />
+              <label>
+                Tipo
+                <select id="editType">
+                  <option value="entrada">Entrada</option>
+                  <option value="saida">Saida</option>
+                </select>
+              </label>
+              <label>
+                Valor
+                <input id="editAmount" inputmode="decimal" required />
+              </label>
+              <label>
+                Data da operacao
+                <input id="editDate" type="date" required />
+              </label>
+              <label>
+                Nota
+                <input id="editNote" required />
+              </label>
+              <div class="edit-actions">
+                <button class="primary-button" type="submit">Salvar alteracao</button>
+                <button class="small-button danger" id="cancelSavedEdit" type="button">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -118,6 +175,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=3" defer></script>
+    <script src="./app.js?v=4" defer></script>
   </body>
 </html>
