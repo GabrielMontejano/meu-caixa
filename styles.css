@@ -213,6 +213,7 @@ button {
 .home-actions {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .home-action {
@@ -468,6 +469,19 @@ button {
   gap: 10px;
 }
 
+.edit-filters {
+  align-items: end;
+  background: rgba(7, 16, 23, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.filter-clear {
+  min-height: 44px;
+}
+
 .report-summary {
   display: grid;
   gap: 8px;
@@ -531,6 +545,7 @@ button {
   color: var(--red);
 }
 
+.app-dialog,
 .backup-dialog {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -540,10 +555,19 @@ button {
   padding: 0;
 }
 
+.edit-dialog {
+  max-height: min(92vh, 760px);
+  max-width: min(92vw, 620px);
+  overflow: auto;
+  width: 620px;
+}
+
+.app-dialog::backdrop,
 .backup-dialog::backdrop {
   background: rgba(0, 0, 0, 0.62);
 }
 
+.dialog-card,
 .backup-dialog form {
   display: grid;
   gap: 14px;
@@ -559,6 +583,21 @@ button {
 .dialog-header h2 {
   font-size: 1.25rem;
   margin: 0;
+}
+
+.dialog-header span {
+  color: var(--cyan);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 900;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.edit-dialog .saved-edit-form {
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 
 .backup-dialog p {
@@ -607,6 +646,30 @@ button {
   color: var(--text);
 }
 
+.chat-helper {
+  gap: 12px;
+}
+
+.chat-helper > span {
+  line-height: 1.45;
+}
+
+.helper-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.helper-examples small {
+  background: rgba(92, 198, 255, 0.12);
+  border: 1px solid rgba(92, 198, 255, 0.22);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.88rem;
+  padding: 8px 10px;
+}
+
 @media (max-width: 390px) {
   .brand p {
     display: none;
@@ -635,11 +698,15 @@ button {
   }
 
   .home-actions {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .filters {
     grid-template-columns: 1fr 1fr 150px;
+  }
+
+  .edit-filters {
+    grid-template-columns: 1fr 1fr 130px 120px 120px auto;
   }
 
   .parcel-master-fields {

@@ -12,7 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>Meu Caixa</title>
-    <link rel="stylesheet" href="./styles.css?v=6" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
   </head>
   <body>
     <div class="app-shell">
@@ -39,9 +39,13 @@
           </section>
 
           <nav class="home-actions" aria-label="Acoes principais">
-            <button class="home-action" data-screen="launch" type="button">
-              <strong>Lancar</strong>
-              <span>Registrar por conversa</span>
+            <button class="home-action" data-launch-type="saida" data-screen="launch" type="button">
+              <strong>Gasto</strong>
+              <span>Valor, nota e data</span>
+            </button>
+            <button class="home-action" data-launch-type="entrada" data-screen="launch" type="button">
+              <strong>Entrada</strong>
+              <span>Dinheiro que entrou</span>
             </button>
             <button class="home-action" data-screen="report" type="button">
               <strong>Relatorio</strong>
@@ -56,8 +60,8 @@
 
         <section class="screen" id="launchScreen">
           <div class="page-title">
-            <span>Lancar</span>
-            <h2>Novo lancamento</h2>
+            <span id="launchLabel">Gasto</span>
+            <h2 id="launchTitle">Novo gasto</h2>
           </div>
           <div class="chat-panel">
             <div class="messages" id="messages" aria-live="polite"></div>
@@ -66,7 +70,7 @@
                 id="entryInput"
                 rows="2"
                 autocomplete="off"
-                placeholder="Ex: gastei 300 reais em gasolina ontem"
+                placeholder="Ex: 300 gasolina ontem"
               ></textarea>
               <button class="primary-button" type="submit">Enviar</button>
             </form>
@@ -124,48 +128,87 @@
             <h2>Lancamentos salvos</h2>
           </div>
           <div class="edit-panel">
-            <div class="edit-list" id="editList"></div>
-            <div class="parcel-warning hidden" id="editParcelWarning"></div>
-            <form class="saved-edit-form hidden" id="savedEditForm">
-              <input id="editId" type="hidden" />
+            <div class="filters edit-filters">
+              <label>
+                Inicio
+                <input id="editFilterStart" type="date" />
+              </label>
+              <label>
+                Fim
+                <input id="editFilterEnd" type="date" />
+              </label>
               <label>
                 Tipo
-                <select id="editType">
+                <select id="editFilterType">
+                  <option value="todos">Todos</option>
                   <option value="entrada">Entrada</option>
                   <option value="saida">Saida</option>
                 </select>
               </label>
               <label>
-                Valor
-                <input id="editAmount" inputmode="decimal" required />
-              </label>
-              <div class="parcel-master-fields hidden" id="parcelMasterFields">
-                <label>
-                  Total parcelado
-                  <input id="editTotalAmount" inputmode="decimal" />
-                </label>
-                <label>
-                  Parcelas
-                  <input id="editInstallments" inputmode="numeric" min="2" max="72" type="number" />
-                </label>
-              </div>
-              <label>
-                Data da operacao
-                <input id="editDate" type="date" required />
+                Valor min.
+                <input id="editFilterMin" inputmode="decimal" placeholder="0,00" />
               </label>
               <label>
-                Nota
-                <input id="editNote" required />
+                Valor max.
+                <input id="editFilterMax" inputmode="decimal" placeholder="0,00" />
               </label>
-              <div class="edit-actions">
-                <button class="primary-button" type="submit">Salvar alteracao</button>
-                <button class="small-button danger" id="cancelSavedEdit" type="button">Cancelar</button>
-              </div>
-            </form>
+              <button class="small-button filter-clear" id="clearEditFilters" type="button">Limpar</button>
+            </div>
+            <div class="edit-list" id="editList"></div>
           </div>
         </section>
       </main>
     </div>
+
+    <dialog class="app-dialog edit-dialog" id="editDialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <span>Alterar</span>
+            <h2>Editar lancamento</h2>
+          </div>
+          <button class="icon-button" id="closeEditDialog" aria-label="Fechar" type="button">x</button>
+        </div>
+        <div class="parcel-warning hidden" id="editParcelWarning"></div>
+        <form class="saved-edit-form hidden" id="savedEditForm">
+          <input id="editId" type="hidden" />
+          <label>
+            Tipo
+            <select id="editType">
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saida</option>
+            </select>
+          </label>
+          <label>
+            Valor
+            <input id="editAmount" inputmode="decimal" required />
+          </label>
+          <div class="parcel-master-fields hidden" id="parcelMasterFields">
+            <label>
+              Total parcelado
+              <input id="editTotalAmount" inputmode="decimal" />
+            </label>
+            <label>
+              Parcelas
+              <input id="editInstallments" inputmode="numeric" min="2" max="72" type="number" />
+            </label>
+          </div>
+          <label>
+            Data da operacao
+            <input id="editDate" type="date" required />
+          </label>
+          <label>
+            Nota
+            <input id="editNote" required />
+          </label>
+          <div class="edit-actions">
+            <button class="primary-button" type="submit">Salvar alteracao</button>
+            <button class="small-button danger" id="cancelSavedEdit" type="button">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <dialog class="backup-dialog" id="backupDialog">
       <form method="dialog">
@@ -186,6 +229,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=6" defer></script>
+    <script src="./app.js?v=11" defer></script>
   </body>
 </html>

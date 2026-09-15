@@ -6,14 +6,41 @@ const BACKUP_VERSION = 1;
 const state = {
   db: null,
   lancamentos: [],
-  messages: [],
+  activeLaunchType: "saida",
+  messages: {
+    saida: [],
+    entrada: [],
+  },
 };
 
 const subtitles = {
   home: "Controle simples, privado e direto.",
-  launch: "Lance por conversa.",
+  launch: "Lance de forma simples.",
   report: "Consulte e exporte.",
   edit: "Corrija lancamentos salvos.",
+};
+
+const launchModes = {
+  saida: {
+    label: "Gasto",
+    title: "Novo gasto",
+    subtitle: "Anote dinheiro que saiu.",
+    placeholder: "500 almoco",
+    helperTitle: "Digite o gasto direto",
+    helperText: "Valor primeiro, depois a descricao. A data e opcional.",
+    examples: ["500 almoco", "300 gasolina ontem", "1000 pneu 4x"],
+    missingValue: "Nao encontrei o valor. Tente algo como: 80 mercado.",
+  },
+  entrada: {
+    label: "Entrada",
+    title: "Nova entrada",
+    subtitle: "Anote dinheiro que entrou.",
+    placeholder: "2000 salario",
+    helperTitle: "Digite a entrada direto",
+    helperText: "Valor primeiro, depois a descricao. A data e opcional.",
+    examples: ["2000 salario", "150 pix ontem"],
+    missingValue: "Nao encontrei o valor. Tente algo como: 150 pix ontem.",
+  },
 };
 
 const money = new Intl.NumberFormat("pt-BR", {
@@ -28,6 +55,8 @@ const els = {
   monthBalance: document.querySelector("#monthBalance"),
   monthResume: document.querySelector("#monthResume"),
   monthCard: document.querySelector(".month-card"),
+  launchLabel: document.querySelector("#launchLabel"),
+  launchTitle: document.querySelector("#launchTitle"),
   messages: document.querySelector("#messages"),
   entryForm: document.querySelector("#entryForm"),
   entryInput: document.querySelector("#entryInput"),
@@ -38,7 +67,15 @@ const els = {
   reportExpense: document.querySelector("#reportExpense"),
   reportBalance: document.querySelector("#reportBalance"),
   transactionsList: document.querySelector("#transactionsList"),
+  editFilterStart: document.querySelector("#editFilterStart"),
+  editFilterEnd: document.querySelector("#editFilterEnd"),
+  editFilterType: document.querySelector("#editFilterType"),
+  editFilterMin: document.querySelector("#editFilterMin"),
+  editFilterMax: document.querySelector("#editFilterMax"),
+  clearEditFilters: document.querySelector("#clearEditFilters"),
   editList: document.querySelector("#editList"),
+  editDialog: document.querySelector("#editDialog"),
+  closeEditDialog: document.querySelector("#closeEditDialog"),
   editParcelWarning: document.querySelector("#editParcelWarning"),
   savedEditForm: document.querySelector("#savedEditForm"),
   editId: document.querySelector("#editId"),
@@ -238,6 +275,10 @@ function inferAmount(text) {
   return parseCurrency(moneyMatch?.[1]);
 }
 
+function normalizeNote(note) {
+  return normalizeText(note).replace(/\s+/g, " ").trim() || "sem nota";
+}
+
 function inferNote(text) {
   let note = text;
   note = note.replace(/r\$\s*[\d.,]+/gi, " ");
@@ -249,14 +290,14 @@ function inferNote(text) {
   note = note.replace(/\b\d+(?:[,.]\d{1,2})?\b/, " ");
   note = note.replace(/\bem\s+\d{1,2}\s*(x|vezes|parcelas)?/gi, " ");
   note = note.replace(/\b\d{1,2}\s*(x|vezes|parcelas)\b/gi, " ");
-  note = note.replace(/\b(no|na|em|de|do|da|para|por|com|o|a)\b/gi, " ");
-  return note.replace(/\s+/g, " ").trim() || "sem nota";
+  note = note.replace(/(^|[^\p{L}\p{N}])(no|na|em|de|do|da|para|por|com|o|a)(?=$|[^\p{L}\p{N}])/giu, "$1 ");
+  return normalizeNote(note);
 }
 
-function parseLancamento(text) {
-  const tipo = inferTipo(text);
+function parseLancamento(text, forcedTipo) {
+  const tipo = forcedTipo || inferTipo(text);
   const valorTotal = inferAmount(text);
-  const parcelasTotal = inferInstallments(text);
+  const parcelasTotal = tipo === "entrada" ? 1 : inferInstallments(text);
   const valor = parcelasTotal > 1 ? roundMoney(valorTotal / parcelasTotal) : valorTotal;
   return {
     tipo,
@@ -309,13 +350,25 @@ function parcelMaster(item) {
   return parcelGroup(item.grupoParcelamentoId).find((entry) => entry.parcelaNumero === 1) || item;
 }
 
+function activeLaunchMode() {
+  return launchModes[state.activeLaunchType] || launchModes.saida;
+}
+
 function navigate(screen, options = {}) {
   document.querySelectorAll(".screen").forEach((item) => item.classList.remove("active"));
   document.querySelector(`#${screen}Screen`).classList.add("active");
   els.backButton.classList.toggle("hidden", screen === "home");
   els.screenSubtitle.textContent = subtitles[screen] || subtitles.home;
 
-  if (screen === "launch") setTimeout(() => els.entryInput.focus(), 50);
+  if (screen === "launch") {
+    const mode = activeLaunchMode();
+    els.screenSubtitle.textContent = mode.subtitle;
+    els.launchLabel.textContent = mode.label;
+    els.launchTitle.textContent = mode.title;
+    els.entryInput.placeholder = mode.placeholder;
+    renderMessages();
+    setTimeout(() => els.entryInput.focus(), 50);
+  }
   if (screen === "edit") {
     renderEditList();
     if (options.editId) openSavedEdit(options.editId);
@@ -323,7 +376,7 @@ function navigate(screen, options = {}) {
 }
 
 function addMessage(message) {
-  state.messages.push({
+  state.messages[state.activeLaunchType].push({
     id: id("msg"),
     createdAt: new Date().toISOString(),
     ...message,
@@ -347,16 +400,29 @@ function savedText(items) {
 }
 
 function renderMessages() {
+  const messages = state.messages[state.activeLaunchType] || [];
   els.messages.innerHTML = "";
-  if (!state.messages.length) {
+  if (!messages.length) {
     const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.textContent = "Escreva ou dite pelo teclado do iPhone. Eu salvo e deixo pronto para alterar se precisar.";
+    const mode = activeLaunchMode();
+    empty.className = "empty-state chat-helper";
+    const title = document.createElement("strong");
+    title.textContent = mode.helperTitle;
+    const text = document.createElement("span");
+    text.textContent = mode.helperText;
+    const examples = document.createElement("div");
+    examples.className = "helper-examples";
+    mode.examples.forEach((example) => {
+      const item = document.createElement("small");
+      item.textContent = example;
+      examples.append(item);
+    });
+    empty.append(title, text, examples);
     els.messages.append(empty);
     return;
   }
 
-  state.messages.forEach((message) => {
+  messages.forEach((message) => {
     const item = document.createElement("div");
     item.className = `message ${message.sender}`;
     const p = document.createElement("p");
@@ -394,12 +460,12 @@ function button(text, className, onClick, type = "button") {
 
 async function createFromChat(text) {
   addMessage({ sender: "user", text });
-  const draft = parseLancamento(text);
+  const draft = parseLancamento(text, state.activeLaunchType);
 
   if (!draft.valor) {
     addMessage({
       sender: "bot",
-      text: "Nao encontrei o valor. Tente algo como: gastei 80 reais no mercado.",
+      text: activeLaunchMode().missingValue,
     });
     return;
   }
@@ -434,6 +500,24 @@ function sortedLancamentos() {
     const byDate = b.dataOperacao.localeCompare(a.dataOperacao);
     if (byDate) return byDate;
     return (b.dataCriacao || "").localeCompare(a.dataCriacao || "");
+  });
+}
+
+function filteredEditLancamentos() {
+  const start = els.editFilterStart.value ? parseInputDate(els.editFilterStart.value) : null;
+  const end = els.editFilterEnd.value ? parseInputDate(els.editFilterEnd.value) : null;
+  const type = els.editFilterType.value;
+  const min = parseCurrency(els.editFilterMin.value);
+  const max = parseCurrency(els.editFilterMax.value);
+  if (end) end.setHours(23, 59, 59, 999);
+
+  return sortedLancamentos().filter((item) => {
+    const date = parseInputDate(item.dataOperacao);
+    const matchesDate = (!start || date >= start) && (!end || date <= end);
+    const matchesType = type === "todos" || item.tipo === type;
+    const matchesMin = !min || item.valor >= min;
+    const matchesMax = !max || item.valor <= max;
+    return matchesDate && matchesType && matchesMin && matchesMax;
   });
 }
 
@@ -511,19 +595,27 @@ function transactionRow(item, editable) {
 
 function renderEditList() {
   els.editList.innerHTML = "";
-  const items = sortedLancamentos();
+  const items = filteredEditLancamentos();
 
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "Nenhum lancamento salvo ainda.";
+    empty.textContent = state.lancamentos.length ? "Nenhum lancamento encontrado com esses filtros." : "Nenhum lancamento salvo ainda.";
     els.editList.append(empty);
-    els.editParcelWarning.classList.add("hidden");
-    els.savedEditForm.classList.add("hidden");
     return;
   }
 
   items.forEach((item) => els.editList.append(transactionRow(item, true)));
+}
+
+function openEditDialog() {
+  if (!els.editDialog.open) els.editDialog.showModal();
+}
+
+function closeEditDialog() {
+  els.editDialog.close();
+  els.editParcelWarning.classList.add("hidden");
+  els.savedEditForm.classList.add("hidden");
 }
 
 function openSavedEdit(itemId) {
@@ -551,7 +643,7 @@ function openSavedEdit(itemId) {
     els.editInstallments.value = "";
   }
   els.savedEditForm.classList.remove("hidden");
-  els.savedEditForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  openEditDialog();
 }
 
 function showParcelChildWarning(item) {
@@ -567,7 +659,7 @@ function showParcelChildWarning(item) {
 
   els.editParcelWarning.append(title, text, action);
   els.editParcelWarning.classList.remove("hidden");
-  els.editParcelWarning.scrollIntoView({ behavior: "smooth", block: "start" });
+  openEditDialog();
 }
 
 async function saveEditedLancamento(event) {
@@ -585,13 +677,13 @@ async function saveEditedLancamento(event) {
     tipo: els.editType.value,
     valor: roundMoney(parseCurrency(els.editAmount.value)),
     dataOperacao: els.editDate.value,
-    nota: els.editNote.value.trim() || "sem nota",
+    nota: normalizeNote(els.editNote.value),
     dataAtualizacao: new Date().toISOString(),
   };
 
   await saveLancamentos([updated]);
   state.lancamentos = state.lancamentos.map((entry) => (entry.id === updated.id ? updated : entry));
-  els.savedEditForm.classList.add("hidden");
+  closeEditDialog();
   addMessage({ sender: "bot", text: "Alteracao realizada e salva." });
   refresh();
   renderEditList();
@@ -612,7 +704,7 @@ async function saveEditedParcelGroup(master) {
     updatedAt,
     tipo: els.editType.value,
     valor,
-    nota: els.editNote.value.trim() || "sem nota",
+    nota: normalizeNote(els.editNote.value),
     dataOperacao: els.editDate.value,
     parcelasTotal,
     valorTotalParcelado,
@@ -632,8 +724,7 @@ async function saveEditedParcelGroup(master) {
     ...nextGroup.filter((entry) => !state.lancamentos.some((current) => current.id === entry.id)),
   ];
 
-  els.savedEditForm.classList.add("hidden");
-  els.editParcelWarning.classList.add("hidden");
+  closeEditDialog();
   addMessage({ sender: "bot", text: "Parcelamento recalculado e salvo." });
   refresh();
   renderEditList();
@@ -747,7 +838,10 @@ function setDefaultFilters() {
 
 function bindEvents() {
   document.querySelectorAll("[data-screen]").forEach((button) => {
-    button.addEventListener("click", () => navigate(button.dataset.screen));
+    button.addEventListener("click", () => {
+      if (button.dataset.launchType) state.activeLaunchType = button.dataset.launchType;
+      navigate(button.dataset.screen);
+    });
   });
 
   els.backButton.addEventListener("click", () => navigate("home"));
@@ -764,8 +858,26 @@ function bindEvents() {
     input.addEventListener("change", renderReport);
   });
 
+  [els.editFilterStart, els.editFilterEnd, els.editFilterType, els.editFilterMin, els.editFilterMax].forEach((input) => {
+    input.addEventListener("input", renderEditList);
+    input.addEventListener("change", renderEditList);
+  });
+
+  els.clearEditFilters.addEventListener("click", () => {
+    els.editFilterStart.value = "";
+    els.editFilterEnd.value = "";
+    els.editFilterType.value = "todos";
+    els.editFilterMin.value = "";
+    els.editFilterMax.value = "";
+    renderEditList();
+  });
+
   els.savedEditForm.addEventListener("submit", saveEditedLancamento);
-  els.cancelSavedEdit.addEventListener("click", () => els.savedEditForm.classList.add("hidden"));
+  els.closeEditDialog.addEventListener("click", closeEditDialog);
+  els.editDialog.addEventListener("click", (event) => {
+    if (event.target === els.editDialog) closeEditDialog();
+  });
+  els.cancelSavedEdit.addEventListener("click", closeEditDialog);
   els.pdfButton.addEventListener("click", exportPdf);
   els.backupButton.addEventListener("click", () => els.backupDialog.showModal());
   els.exportBackupButton.addEventListener("click", exportBackup);
