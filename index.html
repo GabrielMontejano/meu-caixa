@@ -12,7 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>Meu Caixa</title>
-    <link rel="stylesheet" href="./styles.css?v=9" />
+    <link rel="stylesheet" href="./styles.css?v=10" />
   </head>
   <body>
     <div class="app-shell">
@@ -128,38 +128,59 @@
             <h2>Lancamentos salvos</h2>
           </div>
           <div class="edit-panel">
-            <div class="filters edit-filters">
-              <label>
-                Inicio
-                <input id="editFilterStart" type="date" />
-              </label>
-              <label>
-                Fim
-                <input id="editFilterEnd" type="date" />
-              </label>
-              <label>
-                Tipo
-                <select id="editFilterType">
-                  <option value="todos">Todos</option>
-                  <option value="entrada">Entrada</option>
-                  <option value="saida">Saida</option>
-                </select>
-              </label>
-              <label>
-                Valor min.
-                <input id="editFilterMin" inputmode="decimal" placeholder="0,00" />
-              </label>
-              <label>
-                Valor max.
-                <input id="editFilterMax" inputmode="decimal" placeholder="0,00" />
-              </label>
-              <button class="small-button filter-clear" id="clearEditFilters" type="button">Limpar</button>
+            <div class="edit-toolbar">
+              <button class="small-button" id="openEditFilters" type="button">Filtros</button>
+              <span id="editFilterSummary">Todos os lancamentos</span>
             </div>
             <div class="edit-list" id="editList"></div>
           </div>
         </section>
       </main>
     </div>
+
+    <dialog class="app-dialog filter-dialog" id="editFilterDialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <span>Filtros</span>
+            <h2>Buscar lancamentos</h2>
+          </div>
+          <button class="icon-button" id="closeEditFilterDialog" aria-label="Fechar" type="button">x</button>
+        </div>
+        <form class="filter-form" id="editFilterForm">
+          <div class="filters edit-filters">
+            <label>
+              Inicio
+              <input id="editFilterStart" type="date" />
+            </label>
+            <label>
+              Fim
+              <input id="editFilterEnd" type="date" />
+            </label>
+            <label>
+              Tipo
+              <select id="editFilterType">
+                <option value="todos">Todos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saida</option>
+              </select>
+            </label>
+            <label>
+              Valor min.
+              <input id="editFilterMin" inputmode="decimal" placeholder="0,00" />
+            </label>
+            <label>
+              Valor max.
+              <input id="editFilterMax" inputmode="decimal" placeholder="0,00" />
+            </label>
+          </div>
+          <div class="edit-actions">
+            <button class="primary-button" type="submit">Filtrar</button>
+            <button class="small-button" id="clearEditFilters" type="button">Limpar</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
 
     <dialog class="app-dialog edit-dialog" id="editDialog">
       <div class="dialog-card">
@@ -229,6 +250,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=11" defer></script>
+    <script src="./app.js?v=12" defer></script>
   </body>
 </html>

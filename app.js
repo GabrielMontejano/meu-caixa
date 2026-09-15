@@ -67,6 +67,11 @@ const els = {
   reportExpense: document.querySelector("#reportExpense"),
   reportBalance: document.querySelector("#reportBalance"),
   transactionsList: document.querySelector("#transactionsList"),
+  openEditFilters: document.querySelector("#openEditFilters"),
+  editFilterSummary: document.querySelector("#editFilterSummary"),
+  editFilterDialog: document.querySelector("#editFilterDialog"),
+  closeEditFilterDialog: document.querySelector("#closeEditFilterDialog"),
+  editFilterForm: document.querySelector("#editFilterForm"),
   editFilterStart: document.querySelector("#editFilterStart"),
   editFilterEnd: document.querySelector("#editFilterEnd"),
   editFilterType: document.querySelector("#editFilterType"),
@@ -521,6 +526,21 @@ function filteredEditLancamentos() {
   });
 }
 
+function updateEditFilterSummary() {
+  const parts = [];
+  if (els.editFilterType.value !== "todos") {
+    parts.push(els.editFilterType.value === "entrada" ? "Entradas" : "Saidas");
+  }
+  if (els.editFilterStart.value || els.editFilterEnd.value) {
+    const start = els.editFilterStart.value ? formatDate(els.editFilterStart.value) : "inicio";
+    const end = els.editFilterEnd.value ? formatDate(els.editFilterEnd.value) : "hoje";
+    parts.push(`${start} ate ${end}`);
+  }
+  if (els.editFilterMin.value) parts.push(`acima de ${money.format(parseCurrency(els.editFilterMin.value))}`);
+  if (els.editFilterMax.value) parts.push(`ate ${money.format(parseCurrency(els.editFilterMax.value))}`);
+  els.editFilterSummary.textContent = parts.length ? parts.join(" · ") : "Todos os lancamentos";
+}
+
 function calcTotals(items) {
   return items.reduce(
     (acc, item) => {
@@ -858,18 +878,26 @@ function bindEvents() {
     input.addEventListener("change", renderReport);
   });
 
-  [els.editFilterStart, els.editFilterEnd, els.editFilterType, els.editFilterMin, els.editFilterMax].forEach((input) => {
-    input.addEventListener("input", renderEditList);
-    input.addEventListener("change", renderEditList);
+  els.openEditFilters.addEventListener("click", () => els.editFilterDialog.showModal());
+  els.closeEditFilterDialog.addEventListener("click", () => els.editFilterDialog.close());
+  els.editFilterDialog.addEventListener("click", (event) => {
+    if (event.target === els.editFilterDialog) els.editFilterDialog.close();
   });
-
+  els.editFilterForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    updateEditFilterSummary();
+    renderEditList();
+    els.editFilterDialog.close();
+  });
   els.clearEditFilters.addEventListener("click", () => {
     els.editFilterStart.value = "";
     els.editFilterEnd.value = "";
     els.editFilterType.value = "todos";
     els.editFilterMin.value = "";
     els.editFilterMax.value = "";
+    updateEditFilterSummary();
     renderEditList();
+    els.editFilterDialog.close();
   });
 
   els.savedEditForm.addEventListener("submit", saveEditedLancamento);
@@ -900,6 +928,7 @@ async function init() {
   state.lancamentos = await getAllLancamentos();
   setDefaultFilters();
   bindEvents();
+  updateEditFilterSummary();
   refresh();
   renderMessages();
 
