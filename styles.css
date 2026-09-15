@@ -437,6 +437,32 @@ button {
   padding: 12px;
 }
 
+.parcel-warning {
+  background: rgba(244, 201, 93, 0.12);
+  border: 1px solid rgba(244, 201, 93, 0.34);
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.parcel-warning strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.parcel-warning p {
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.parcel-master-fields {
+  display: grid;
+  gap: 10px;
+}
+
 .filters {
   display: grid;
   gap: 10px;
@@ -614,6 +640,10 @@ button {
 
   .filters {
     grid-template-columns: 1fr 1fr 150px;
+  }
+
+  .parcel-master-fields {
+    grid-template-columns: 1fr 130px;
   }
 
   .chat-panel,

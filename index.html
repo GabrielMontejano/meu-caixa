@@ -12,7 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>Meu Caixa</title>
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
   </head>
   <body>
     <div class="app-shell">
@@ -125,6 +125,7 @@
           </div>
           <div class="edit-panel">
             <div class="edit-list" id="editList"></div>
+            <div class="parcel-warning hidden" id="editParcelWarning"></div>
             <form class="saved-edit-form hidden" id="savedEditForm">
               <input id="editId" type="hidden" />
               <label>
@@ -138,6 +139,16 @@
                 Valor
                 <input id="editAmount" inputmode="decimal" required />
               </label>
+              <div class="parcel-master-fields hidden" id="parcelMasterFields">
+                <label>
+                  Total parcelado
+                  <input id="editTotalAmount" inputmode="decimal" />
+                </label>
+                <label>
+                  Parcelas
+                  <input id="editInstallments" inputmode="numeric" min="2" max="72" type="number" />
+                </label>
+              </div>
               <label>
                 Data da operacao
                 <input id="editDate" type="date" required />
@@ -175,6 +186,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=4" defer></script>
+    <script src="./app.js?v=6" defer></script>
   </body>
 </html>

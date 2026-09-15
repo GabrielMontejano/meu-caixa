@@ -39,10 +39,14 @@ const els = {
   reportBalance: document.querySelector("#reportBalance"),
   transactionsList: document.querySelector("#transactionsList"),
   editList: document.querySelector("#editList"),
+  editParcelWarning: document.querySelector("#editParcelWarning"),
   savedEditForm: document.querySelector("#savedEditForm"),
   editId: document.querySelector("#editId"),
   editType: document.querySelector("#editType"),
   editAmount: document.querySelector("#editAmount"),
+  parcelMasterFields: document.querySelector("#parcelMasterFields"),
+  editTotalAmount: document.querySelector("#editTotalAmount"),
+  editInstallments: document.querySelector("#editInstallments"),
   editDate: document.querySelector("#editDate"),
   editNote: document.querySelector("#editNote"),
   cancelSavedEdit: document.querySelector("#cancelSavedEdit"),
@@ -95,6 +99,16 @@ function replaceLancamentos(items) {
     const store = transaction.objectStore(STORE);
     store.clear();
     items.forEach((item) => store.put(item));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function deleteLancamentos(ids) {
+  return new Promise((resolve, reject) => {
+    const transaction = state.db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    ids.forEach((itemId) => store.delete(itemId));
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
@@ -258,22 +272,41 @@ function parseLancamento(text) {
 function buildLancamentosFromDraft(draft) {
   const now = new Date().toISOString();
   const total = Number(draft.parcelasTotal || 1);
-  const groupId = total > 1 ? id("parc") : undefined;
+  const groupId = total > 1 ? draft.grupoParcelamentoId || id("parc") : undefined;
   const firstDate = parseInputDate(draft.dataOperacao);
   return Array.from({ length: total }, (_, index) => ({
-    id: id("lan"),
+    id: draft.ids?.[index] || id("lan"),
     tipo: draft.tipo,
     valor: roundMoney(draft.valor),
     nota: draft.nota || "sem nota",
     dataOperacao: toDateInputValue(addMonths(firstDate, index)),
-    dataCriacao: now,
-    dataAtualizacao: null,
+    dataCriacao: draft.createdAtByIndex?.[index] || now,
+    dataAtualizacao: draft.updatedAt || null,
     textoOriginal: draft.textoOriginal,
     parcelasTotal: total > 1 ? total : undefined,
     parcelaNumero: total > 1 ? index + 1 : undefined,
     grupoParcelamentoId: groupId,
     valorTotalParcelado: total > 1 ? roundMoney(draft.valorTotalParcelado || draft.valor * total) : undefined,
   }));
+}
+
+function isParcelChild(item) {
+  return Boolean(item.grupoParcelamentoId && item.parcelaNumero && item.parcelaNumero > 1);
+}
+
+function isParcelMaster(item) {
+  return Boolean(item.grupoParcelamentoId && item.parcelaNumero === 1);
+}
+
+function parcelGroup(groupId) {
+  return state.lancamentos
+    .filter((entry) => entry.grupoParcelamentoId === groupId)
+    .sort((a, b) => (a.parcelaNumero || 0) - (b.parcelaNumero || 0));
+}
+
+function parcelMaster(item) {
+  if (!item.grupoParcelamentoId) return item;
+  return parcelGroup(item.grupoParcelamentoId).find((entry) => entry.parcelaNumero === 1) || item;
 }
 
 function navigate(screen, options = {}) {
@@ -485,6 +518,7 @@ function renderEditList() {
     empty.className = "empty-state";
     empty.textContent = "Nenhum lancamento salvo ainda.";
     els.editList.append(empty);
+    els.editParcelWarning.classList.add("hidden");
     els.savedEditForm.classList.add("hidden");
     return;
   }
@@ -495,19 +529,56 @@ function renderEditList() {
 function openSavedEdit(itemId) {
   const item = state.lancamentos.find((entry) => entry.id === itemId);
   if (!item) return;
+
+  if (isParcelChild(item)) {
+    showParcelChildWarning(item);
+    return;
+  }
+
+  els.editParcelWarning.classList.add("hidden");
   els.editId.value = item.id;
   els.editType.value = item.tipo;
   els.editAmount.value = String(item.valor).replace(".", ",");
   els.editDate.value = item.dataOperacao;
   els.editNote.value = item.nota;
+  if (isParcelMaster(item)) {
+    els.parcelMasterFields.classList.remove("hidden");
+    els.editTotalAmount.value = String(item.valorTotalParcelado || item.valor * item.parcelasTotal).replace(".", ",");
+    els.editInstallments.value = item.parcelasTotal || parcelGroup(item.grupoParcelamentoId).length;
+  } else {
+    els.parcelMasterFields.classList.add("hidden");
+    els.editTotalAmount.value = "";
+    els.editInstallments.value = "";
+  }
   els.savedEditForm.classList.remove("hidden");
   els.savedEditForm.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function showParcelChildWarning(item) {
+  const master = parcelMaster(item);
+  els.savedEditForm.classList.add("hidden");
+  els.editParcelWarning.innerHTML = "";
+
+  const title = document.createElement("strong");
+  title.textContent = "Compra parcelada";
+  const text = document.createElement("p");
+  text.textContent = "Esta e uma parcela filha. Para o sistema recalcular tudo, altere o lancamento mestre.";
+  const action = button("Alterar lancamento mestre", "small-button", () => openSavedEdit(master.id));
+
+  els.editParcelWarning.append(title, text, action);
+  els.editParcelWarning.classList.remove("hidden");
+  els.editParcelWarning.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function saveEditedLancamento(event) {
   event.preventDefault();
   const item = state.lancamentos.find((entry) => entry.id === els.editId.value);
   if (!item) return;
+
+  if (isParcelMaster(item)) {
+    await saveEditedParcelGroup(item);
+    return;
+  }
 
   const updated = {
     ...item,
@@ -522,6 +593,48 @@ async function saveEditedLancamento(event) {
   state.lancamentos = state.lancamentos.map((entry) => (entry.id === updated.id ? updated : entry));
   els.savedEditForm.classList.add("hidden");
   addMessage({ sender: "bot", text: "Alteracao realizada e salva." });
+  refresh();
+  renderEditList();
+}
+
+async function saveEditedParcelGroup(master) {
+  const group = parcelGroup(master.grupoParcelamentoId);
+  const parcelasTotal = Math.max(2, Math.min(72, Number(els.editInstallments.value || group.length || 2)));
+  const valorTotalParcelado = roundMoney(parseCurrency(els.editTotalAmount.value) || parseCurrency(els.editAmount.value) * parcelasTotal);
+  const valor = roundMoney(valorTotalParcelado / parcelasTotal);
+  const updatedAt = new Date().toISOString();
+  const createdAtByIndex = group.map((entry) => entry.dataCriacao);
+  const ids = group.slice(0, parcelasTotal).map((entry) => entry.id);
+
+  const nextGroup = buildLancamentosFromDraft({
+    ids,
+    createdAtByIndex,
+    updatedAt,
+    tipo: els.editType.value,
+    valor,
+    nota: els.editNote.value.trim() || "sem nota",
+    dataOperacao: els.editDate.value,
+    parcelasTotal,
+    valorTotalParcelado,
+    textoOriginal: master.textoOriginal,
+    grupoParcelamentoId: master.grupoParcelamentoId,
+  });
+
+  const removedIds = group.slice(parcelasTotal).map((entry) => entry.id);
+  if (removedIds.length) await deleteLancamentos(removedIds);
+  await saveLancamentos(nextGroup);
+
+  const nextById = new Map(nextGroup.map((entry) => [entry.id, entry]));
+  state.lancamentos = [
+    ...state.lancamentos
+      .filter((entry) => entry.grupoParcelamentoId !== master.grupoParcelamentoId || nextById.has(entry.id))
+      .map((entry) => nextById.get(entry.id) || entry),
+    ...nextGroup.filter((entry) => !state.lancamentos.some((current) => current.id === entry.id)),
+  ];
+
+  els.savedEditForm.classList.add("hidden");
+  els.editParcelWarning.classList.add("hidden");
+  addMessage({ sender: "bot", text: "Parcelamento recalculado e salvo." });
   refresh();
   renderEditList();
 }
