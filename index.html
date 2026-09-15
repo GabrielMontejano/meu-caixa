@@ -12,7 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>Meu Caixa</title>
-    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="stylesheet" href="./styles.css?v=12" />
   </head>
   <body>
     <div class="app-shell">
@@ -39,7 +39,7 @@
           </section>
 
           <nav class="home-actions" aria-label="Acoes principais">
-            <button class="home-action" data-launch-type="saida" data-screen="launch" type="button">
+            <button class="home-action" data-screen="expenseConversations" type="button">
               <strong>Gasto</strong>
               <span>Valor, nota e data</span>
             </button>
@@ -56,6 +56,20 @@
               <span>Editar lancamentos salvos</span>
             </button>
           </nav>
+        </section>
+
+        <section class="screen" id="expenseConversationsScreen">
+          <div class="page-title">
+            <span>Gasto</span>
+            <h2>Conversas</h2>
+          </div>
+          <div class="conversation-panel">
+            <div class="conversation-toolbar">
+              <button class="primary-button" id="newConversationButton" type="button">Nova conversa</button>
+              <p>Separe seus gastos por assunto, obra, casa, carro ou pessoal.</p>
+            </div>
+            <div class="conversation-list" id="conversationList"></div>
+          </div>
         </section>
 
         <section class="screen" id="launchScreen">
@@ -100,6 +114,12 @@
                   <option value="saida">Saida</option>
                 </select>
               </label>
+              <label>
+                Conversa
+                <select id="filterConversation">
+                  <option value="todas">Todas</option>
+                </select>
+              </label>
             </div>
 
             <div class="report-summary">
@@ -137,6 +157,25 @@
         </section>
       </main>
     </div>
+
+    <dialog class="app-dialog filter-dialog" id="conversationDialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <span>Gasto</span>
+            <h2>Nova conversa</h2>
+          </div>
+          <button class="icon-button" id="closeConversationDialog" aria-label="Fechar" type="button">x</button>
+        </div>
+        <form class="filter-form" id="conversationForm">
+          <label>
+            Titulo
+            <input id="conversationTitleInput" placeholder="Ex: Obra, casa, carro" required />
+          </label>
+          <button class="primary-button" type="submit">Criar conversa</button>
+        </form>
+      </div>
+    </dialog>
 
     <dialog class="app-dialog filter-dialog" id="editFilterDialog">
       <div class="dialog-card">
@@ -225,6 +264,7 @@
           </label>
           <div class="edit-actions">
             <button class="primary-button" type="submit">Salvar alteracao</button>
+            <button class="small-button danger" id="deleteSavedEdit" type="button">Excluir</button>
             <button class="small-button danger" id="cancelSavedEdit" type="button">Cancelar</button>
           </div>
         </form>
@@ -246,10 +286,13 @@
             Restaurar backup
             <input id="importBackupInput" type="file" accept="application/json,.json" />
           </label>
+          <button class="small-button danger full" id="clearDataButton" value="close" type="button">
+            Limpar dados
+          </button>
         </div>
       </form>
     </dialog>
 
-    <script src="./app.js?v=12" defer></script>
+    <script src="./app.js?v=25" defer></script>
   </body>
 </html>

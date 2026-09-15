@@ -1,12 +1,17 @@
 const DB_NAME = "meu-caixa-local-v3";
-const DB_VERSION = 1;
 const STORE = "lancamentos";
+const LANCAMENTOS_KEY = "meu-caixa-lancamentos";
+const CONVERSATIONS_KEY = "meu-caixa-conversas";
 const BACKUP_VERSION = 1;
+const DEFAULT_CONVERSATION_ID = "geral";
 
 const state = {
   db: null,
   lancamentos: [],
+  conversas: [],
   activeLaunchType: "saida",
+  activeConversationId: DEFAULT_CONVERSATION_ID,
+  currentScreen: "home",
   messages: {
     saida: [],
     entrada: [],
@@ -15,6 +20,7 @@ const state = {
 
 const subtitles = {
   home: "Controle simples, privado e direto.",
+  expenseConversations: "Escolha uma conversa de gasto.",
   launch: "Lance de forma simples.",
   report: "Consulte e exporte.",
   edit: "Corrija lancamentos salvos.",
@@ -63,10 +69,17 @@ const els = {
   filterStart: document.querySelector("#filterStart"),
   filterEnd: document.querySelector("#filterEnd"),
   filterType: document.querySelector("#filterType"),
+  filterConversation: document.querySelector("#filterConversation"),
   reportIncome: document.querySelector("#reportIncome"),
   reportExpense: document.querySelector("#reportExpense"),
   reportBalance: document.querySelector("#reportBalance"),
   transactionsList: document.querySelector("#transactionsList"),
+  newConversationButton: document.querySelector("#newConversationButton"),
+  conversationList: document.querySelector("#conversationList"),
+  conversationDialog: document.querySelector("#conversationDialog"),
+  closeConversationDialog: document.querySelector("#closeConversationDialog"),
+  conversationForm: document.querySelector("#conversationForm"),
+  conversationTitleInput: document.querySelector("#conversationTitleInput"),
   openEditFilters: document.querySelector("#openEditFilters"),
   editFilterSummary: document.querySelector("#editFilterSummary"),
   editFilterDialog: document.querySelector("#editFilterDialog"),
@@ -91,41 +104,94 @@ const els = {
   editInstallments: document.querySelector("#editInstallments"),
   editDate: document.querySelector("#editDate"),
   editNote: document.querySelector("#editNote"),
+  deleteSavedEdit: document.querySelector("#deleteSavedEdit"),
   cancelSavedEdit: document.querySelector("#cancelSavedEdit"),
   pdfButton: document.querySelector("#pdfButton"),
   backupButton: document.querySelector("#backupButton"),
   backupDialog: document.querySelector("#backupDialog"),
   exportBackupButton: document.querySelector("#exportBackupButton"),
+  clearDataButton: document.querySelector("#clearDataButton"),
   importBackupInput: document.querySelector("#importBackupInput"),
 };
 
 function openDb() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    let settled = false;
+    const finish = (db) => {
+      if (settled) {
+        if (db) db.close();
+        return;
+      }
+      settled = true;
+      resolve(db);
+    };
+    const timeout = setTimeout(() => finish(null), 1500);
+    const request = indexedDB.open(DB_NAME);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: "id" });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      clearTimeout(timeout);
+      finish(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timeout);
+      reject(request.error);
+    };
   });
 }
 
-function tx(mode = "readonly") {
-  return state.db.transaction(STORE, mode).objectStore(STORE);
+function tx(mode = "readonly", storeName = STORE) {
+  return state.db.transaction(storeName, mode).objectStore(storeName);
+}
+
+function mergeLancamentos(items) {
+  return [...items.reduce((map, item) => map.set(item.id, item), new Map()).values()];
+}
+
+function getLocalLancamentos() {
+  try {
+    return JSON.parse(localStorage.getItem(LANCAMENTOS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function setLocalLancamentos(items) {
+  localStorage.setItem(LANCAMENTOS_KEY, JSON.stringify(items || []));
 }
 
 function getAllLancamentos() {
+  const localItems = getLocalLancamentos();
+  if (!state.db) return Promise.resolve(localItems);
+
   return new Promise((resolve, reject) => {
     const request = tx().getAll();
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => {
+      const items = mergeLancamentos([...(request.result || []), ...localItems]);
+      setLocalLancamentos(items);
+      resolve(items);
+    };
     request.onerror = () => reject(request.error);
   });
 }
 
+function getAllConversas() {
+  try {
+    return JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
 function saveLancamentos(items) {
+  const itemIds = items.map((item) => item.id);
+  setLocalLancamentos(mergeLancamentos([...getLocalLancamentos().filter((item) => !itemIds.includes(item.id)), ...items]));
+  if (!state.db) return Promise.resolve();
+
   return new Promise((resolve, reject) => {
     const transaction = state.db.transaction(STORE, "readwrite");
     const store = transaction.objectStore(STORE);
@@ -135,7 +201,15 @@ function saveLancamentos(items) {
   });
 }
 
+function saveConversa(conversa) {
+  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(state.conversas));
+  return Promise.resolve(conversa);
+}
+
 function replaceLancamentos(items) {
+  setLocalLancamentos(items);
+  if (!state.db) return Promise.resolve();
+
   return new Promise((resolve, reject) => {
     const transaction = state.db.transaction(STORE, "readwrite");
     const store = transaction.objectStore(STORE);
@@ -146,7 +220,33 @@ function replaceLancamentos(items) {
   });
 }
 
+function replaceConversas(items) {
+  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(items || []));
+  return Promise.resolve();
+}
+
+function clearLancamentos() {
+  localStorage.removeItem(LANCAMENTOS_KEY);
+  if (!state.db) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const transaction = state.db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    store.clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function clearConversas() {
+  localStorage.removeItem(CONVERSATIONS_KEY);
+  return Promise.resolve();
+}
+
 function deleteLancamentos(ids) {
+  setLocalLancamentos(state.lancamentos.filter((item) => !ids.includes(item.id)));
+  if (!state.db) return Promise.resolve();
+
   return new Promise((resolve, reject) => {
     const transaction = state.db.transaction(STORE, "readwrite");
     const store = transaction.objectStore(STORE);
@@ -197,11 +297,19 @@ function parseCurrency(raw) {
   const comma = cleaned.lastIndexOf(",");
   const dot = cleaned.lastIndexOf(".");
   if (comma > dot) return Number(cleaned.replace(/\./g, "").replace(",", "."));
+  if (dot > -1 && comma === -1) {
+    const [integer, decimal] = cleaned.split(".");
+    if (decimal?.length === 3 && integer.length <= 3) return Number(cleaned.replace(/\./g, ""));
+  }
   return Number(cleaned.replace(/,/g, ""));
 }
 
 function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function toMoneyInput(value) {
+  return roundMoney(value).toFixed(2).replace(".", ",");
 }
 
 function formatDate(dateString) {
@@ -273,6 +381,11 @@ function inferInstallments(text) {
 
 function inferAmount(text) {
   const normalized = normalizeText(text);
+  const spokenCentsMatch = normalized.match(/\b(\d+)\s+e\s+(\d{2})\b/);
+  if (spokenCentsMatch) {
+    return Number(`${spokenCentsMatch[1]}.${spokenCentsMatch[2]}`);
+  }
+
   const moneyMatch =
     normalized.match(/r\$\s*([\d.,]+)/) ||
     normalized.match(/\b([\d.,]+)\s*(reais|real)\b/) ||
@@ -288,6 +401,7 @@ function inferNote(text) {
   let note = text;
   note = note.replace(/r\$\s*[\d.,]+/gi, " ");
   note = note.replace(/\b[\d.,]+\s*(reais|real)\b/gi, " ");
+  note = note.replace(/\b\d+\s+e\s+\d{2}\b/gi, " ");
   note = note.replace(/\b(gastei|paguei|comprei|recebi|ganhei|entrou|entrada|saida|despesa|parcelei|lancei|lançar|lancar|vendi)\b/gi, " ");
   note = note.replace(/\b(hoje|ontem|amanha|amanhã)\b/gi, " ");
   note = note.replace(/\bdia\s+\d{1,2}\b/gi, " ");
@@ -329,6 +443,8 @@ function buildLancamentosFromDraft(draft) {
     dataCriacao: draft.createdAtByIndex?.[index] || now,
     dataAtualizacao: draft.updatedAt || null,
     textoOriginal: draft.textoOriginal,
+    conversaId: draft.conversaId,
+    conversaTitulo: draft.conversaTitulo,
     parcelasTotal: total > 1 ? total : undefined,
     parcelaNumero: total > 1 ? index + 1 : undefined,
     grupoParcelamentoId: groupId,
@@ -355,21 +471,46 @@ function parcelMaster(item) {
   return parcelGroup(item.grupoParcelamentoId).find((entry) => entry.parcelaNumero === 1) || item;
 }
 
+function conversaTitulo(conversaId) {
+  if (!conversaId || conversaId === DEFAULT_CONVERSATION_ID) return "Geral";
+  return state.conversas.find((conversa) => conversa.id === conversaId)?.titulo || "Geral";
+}
+
+function itemConversaId(item) {
+  return item.tipo === "saida" ? item.conversaId || DEFAULT_CONVERSATION_ID : "";
+}
+
+function messageKey() {
+  if (state.activeLaunchType === "entrada") return "entrada";
+  return `saida:${state.activeConversationId || DEFAULT_CONVERSATION_ID}`;
+}
+
 function activeLaunchMode() {
   return launchModes[state.activeLaunchType] || launchModes.saida;
+}
+
+function openExpenseConversation(conversaId) {
+  state.activeLaunchType = "saida";
+  state.activeConversationId = conversaId || DEFAULT_CONVERSATION_ID;
+  navigate("launch");
 }
 
 function navigate(screen, options = {}) {
   document.querySelectorAll(".screen").forEach((item) => item.classList.remove("active"));
   document.querySelector(`#${screen}Screen`).classList.add("active");
+  state.currentScreen = screen;
   els.backButton.classList.toggle("hidden", screen === "home");
   els.screenSubtitle.textContent = subtitles[screen] || subtitles.home;
 
+  if (screen === "expenseConversations") {
+    renderExpenseConversations();
+  }
   if (screen === "launch") {
     const mode = activeLaunchMode();
     els.screenSubtitle.textContent = mode.subtitle;
     els.launchLabel.textContent = mode.label;
-    els.launchTitle.textContent = mode.title;
+    els.launchTitle.textContent =
+      state.activeLaunchType === "saida" ? conversaTitulo(state.activeConversationId) : mode.title;
     els.entryInput.placeholder = mode.placeholder;
     renderMessages();
     setTimeout(() => els.entryInput.focus(), 50);
@@ -381,7 +522,9 @@ function navigate(screen, options = {}) {
 }
 
 function addMessage(message) {
-  state.messages[state.activeLaunchType].push({
+  const key = messageKey();
+  if (!state.messages[key]) state.messages[key] = [];
+  state.messages[key].push({
     id: id("msg"),
     createdAt: new Date().toISOString(),
     ...message,
@@ -405,7 +548,24 @@ function savedText(items) {
 }
 
 function renderMessages() {
-  const messages = state.messages[state.activeLaunchType] || [];
+  const key = messageKey();
+  const transientMessages = state.messages[key] || [];
+  const savedMessages =
+    state.activeLaunchType === "saida"
+      ? sortedLancamentos()
+          .filter((item) => item.tipo === "saida" && itemConversaId(item) === (state.activeConversationId || DEFAULT_CONVERSATION_ID))
+          .reverse()
+          .map((item) => ({
+            sender: "bot",
+            text: savedText([item]),
+            editId: item.id,
+            createdAt: item.dataAtualizacao || item.dataCriacao,
+          }))
+      : [];
+  const messages =
+    state.activeLaunchType === "saida"
+      ? [...transientMessages.filter((message) => !message.editId), ...savedMessages]
+      : transientMessages;
   els.messages.innerHTML = "";
   if (!messages.length) {
     const empty = document.createElement("div");
@@ -466,6 +626,10 @@ function button(text, className, onClick, type = "button") {
 async function createFromChat(text) {
   addMessage({ sender: "user", text });
   const draft = parseLancamento(text, state.activeLaunchType);
+  if (draft.tipo === "saida") {
+    draft.conversaId = state.activeConversationId || DEFAULT_CONVERSATION_ID;
+    draft.conversaTitulo = conversaTitulo(draft.conversaId);
+  }
 
   if (!draft.valor) {
     addMessage({
@@ -478,12 +642,15 @@ async function createFromChat(text) {
   const nextItems = buildLancamentosFromDraft(draft);
   await saveLancamentos(nextItems);
   state.lancamentos = [...state.lancamentos, ...nextItems];
-  addMessage({
-    sender: "bot",
-    text: savedText(nextItems),
-    editId: nextItems[0].id,
-  });
+  if (state.activeLaunchType === "entrada") {
+    addMessage({
+      sender: "bot",
+      text: savedText(nextItems),
+      editId: nextItems[0].id,
+    });
+  }
   refresh();
+  renderMessages();
 }
 
 function filteredLancamentos() {
@@ -491,13 +658,32 @@ function filteredLancamentos() {
   const end = els.filterEnd.value ? parseInputDate(els.filterEnd.value) : null;
   if (end) end.setHours(23, 59, 59, 999);
   const type = els.filterType.value;
+  const conversa = els.filterConversation.value;
 
   return state.lancamentos
     .filter((item) => {
       const date = parseInputDate(item.dataOperacao);
-      return (!start || date >= start) && (!end || date <= end) && (type === "todos" || item.tipo === type);
+      const matchesConversa = conversa === "todas" || (item.tipo === "saida" && itemConversaId(item) === conversa);
+      return (!start || date >= start) && (!end || date <= end) && (type === "todos" || item.tipo === type) && matchesConversa;
     })
     .sort((a, b) => b.dataOperacao.localeCompare(a.dataOperacao));
+}
+
+function renderConversationFilter() {
+  const selected = els.filterConversation.value || "todas";
+  const hasGeral = state.lancamentos.some((item) => item.tipo === "saida" && itemConversaId(item) === DEFAULT_CONVERSATION_ID);
+  const options = [{ value: "todas", label: "Todas" }];
+  if (hasGeral) options.push({ value: DEFAULT_CONVERSATION_ID, label: "Geral" });
+  state.conversas.forEach((conversa) => options.push({ value: conversa.id, label: conversa.titulo }));
+
+  els.filterConversation.innerHTML = "";
+  options.forEach((option) => {
+    const item = document.createElement("option");
+    item.value = option.value;
+    item.textContent = option.label;
+    els.filterConversation.append(item);
+  });
+  els.filterConversation.value = options.some((option) => option.value === selected) ? selected : "todas";
 }
 
 function sortedLancamentos() {
@@ -590,6 +776,53 @@ function renderReport() {
   items.forEach((item) => els.transactionsList.append(transactionRow(item, false)));
 }
 
+function gastosDaConversa(conversaId) {
+  return state.lancamentos.filter((item) => item.tipo === "saida" && itemConversaId(item) === conversaId);
+}
+
+function renderExpenseConversations() {
+  els.conversationList.innerHTML = "";
+  const hasGeral = state.lancamentos.some((item) => item.tipo === "saida" && itemConversaId(item) === DEFAULT_CONVERSATION_ID);
+  const conversas = [
+    ...(hasGeral ? [{ id: DEFAULT_CONVERSATION_ID, titulo: "Geral", dataCriacao: "" }] : []),
+    ...state.conversas,
+  ].sort((a, b) => {
+    if (a.id === DEFAULT_CONVERSATION_ID) return -1;
+    if (b.id === DEFAULT_CONVERSATION_ID) return 1;
+    return (b.dataCriacao || "").localeCompare(a.dataCriacao || "");
+  });
+
+  if (!conversas.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Crie uma conversa para separar gastos por obra, casa, carro ou pessoal.";
+    els.conversationList.append(empty);
+    return;
+  }
+
+  conversas.forEach((conversa) => {
+    const items = gastosDaConversa(conversa.id);
+    const total = calcTotals(items).saida;
+    const row = document.createElement("button");
+    row.className = "conversation-item";
+    row.type = "button";
+    row.addEventListener("click", () => openExpenseConversation(conversa.id));
+
+    const details = document.createElement("span");
+    const title = document.createElement("strong");
+    title.textContent = conversa.titulo;
+    const subtitle = document.createElement("small");
+    subtitle.textContent = items.length ? `${items.length} lancamento${items.length > 1 ? "s" : ""}` : "Sem lancamentos";
+    details.append(title, subtitle);
+
+    const value = document.createElement("strong");
+    value.textContent = money.format(total);
+
+    row.append(details, value);
+    els.conversationList.append(row);
+  });
+}
+
 function transactionRow(item, editable) {
   const row = document.createElement("div");
   row.className = "transaction-item";
@@ -599,7 +832,8 @@ function transactionRow(item, editable) {
   const note = document.createElement("strong");
   note.textContent = item.nota;
   const date = document.createElement("small");
-  date.textContent = `${formatDate(item.dataOperacao)}${parcela}`;
+  const conversa = item.tipo === "saida" ? ` · ${conversaTitulo(itemConversaId(item))}` : "";
+  date.textContent = `${formatDate(item.dataOperacao)}${parcela}${conversa}`;
   details.append(note, date);
 
   const value = document.createElement("strong");
@@ -650,12 +884,12 @@ function openSavedEdit(itemId) {
   els.editParcelWarning.classList.add("hidden");
   els.editId.value = item.id;
   els.editType.value = item.tipo;
-  els.editAmount.value = String(item.valor).replace(".", ",");
+  els.editAmount.value = toMoneyInput(item.valor);
   els.editDate.value = item.dataOperacao;
   els.editNote.value = item.nota;
   if (isParcelMaster(item)) {
     els.parcelMasterFields.classList.remove("hidden");
-    els.editTotalAmount.value = String(item.valorTotalParcelado || item.valor * item.parcelasTotal).replace(".", ",");
+    els.editTotalAmount.value = toMoneyInput(item.valorTotalParcelado || item.valor * item.parcelasTotal);
     els.editInstallments.value = item.parcelasTotal || parcelGroup(item.grupoParcelamentoId).length;
   } else {
     els.parcelMasterFields.classList.add("hidden");
@@ -707,6 +941,7 @@ async function saveEditedLancamento(event) {
   addMessage({ sender: "bot", text: "Alteracao realizada e salva." });
   refresh();
   renderEditList();
+  renderMessages();
 }
 
 async function saveEditedParcelGroup(master) {
@@ -726,6 +961,8 @@ async function saveEditedParcelGroup(master) {
     valor,
     nota: normalizeNote(els.editNote.value),
     dataOperacao: els.editDate.value,
+    conversaId: master.conversaId,
+    conversaTitulo: master.conversaTitulo,
     parcelasTotal,
     valorTotalParcelado,
     textoOriginal: master.textoOriginal,
@@ -748,12 +985,37 @@ async function saveEditedParcelGroup(master) {
   addMessage({ sender: "bot", text: "Parcelamento recalculado e salvo." });
   refresh();
   renderEditList();
+  renderMessages();
+}
+
+async function deleteEditedLancamento() {
+  const item = state.lancamentos.find((entry) => entry.id === els.editId.value);
+  if (!item) return;
+
+  const ids = isParcelMaster(item)
+    ? parcelGroup(item.grupoParcelamentoId).map((entry) => entry.id)
+    : [item.id];
+  const message = isParcelMaster(item)
+    ? "Isso exclui todas as parcelas dessa compra. Deseja excluir?"
+    : "Deseja excluir este lancamento?";
+
+  if (!confirm(message)) return;
+
+  await deleteLancamentos(ids);
+  state.lancamentos = state.lancamentos.filter((entry) => !ids.includes(entry.id));
+  closeEditDialog();
+  addMessage({ sender: "bot", text: "Lancamento excluido." });
+  refresh();
+  renderEditList();
+  renderMessages();
 }
 
 function refresh() {
+  renderConversationFilter();
   renderMonthCard();
   renderReport();
   renderEditList();
+  if (state.currentScreen === "expenseConversations") renderExpenseConversations();
 }
 
 function downloadBlob(blob, filename) {
@@ -773,6 +1035,7 @@ function exportBackup() {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     lancamentos: state.lancamentos,
+    conversas: state.conversas,
     settings: {},
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -786,9 +1049,47 @@ async function importBackup(file) {
     throw new Error("Backup invalido");
   }
   await replaceLancamentos(payload.lancamentos);
+  await replaceConversas(payload.conversas || []);
   state.lancamentos = payload.lancamentos;
+  state.conversas = payload.conversas || [];
   addMessage({ sender: "bot", text: "Backup restaurado." });
   refresh();
+}
+
+async function createConversationFromForm(event) {
+  event.preventDefault();
+  const titulo = normalizeNote(els.conversationTitleInput.value);
+  if (!titulo) return;
+
+  const conversa = {
+    id: id("conv"),
+    titulo,
+    dataCriacao: new Date().toISOString(),
+  };
+  state.conversas = [conversa, ...state.conversas];
+  await saveConversa(conversa);
+  els.conversationTitleInput.value = "";
+  els.conversationDialog.close();
+  renderConversationFilter();
+  openExpenseConversation(conversa.id);
+}
+
+async function clearAllData() {
+  const ok = confirm("Isso apaga todos os lancamentos salvos neste aparelho. Faca backup antes se quiser guardar os dados. Deseja limpar tudo?");
+  if (!ok) return;
+
+  await clearLancamentos();
+  await clearConversas();
+  state.lancamentos = [];
+  state.conversas = [];
+  state.activeConversationId = DEFAULT_CONVERSATION_ID;
+  state.messages = {
+    saida: [],
+    entrada: [],
+  };
+  refresh();
+  renderMessages();
+  els.backupDialog.close();
 }
 
 function escapePdfText(text) {
@@ -832,10 +1133,12 @@ function makePdf(lines) {
 function exportPdf() {
   const items = filteredLancamentos();
   const totals = calcTotals(items);
+  const conversaOption = els.filterConversation.options[els.filterConversation.selectedIndex];
   const lines = [
     "Meu Caixa - Relatorio",
     `Periodo: ${els.filterStart.value || "inicio"} ate ${els.filterEnd.value || "hoje"}`,
     `Tipo: ${els.filterType.options[els.filterType.selectedIndex].text}`,
+    `Conversa: ${conversaOption ? conversaOption.text : "Todas"}`,
     `Entradas: ${money.format(totals.entrada)}`,
     `Saidas: ${money.format(totals.saida)}`,
     `Saldo: ${money.format(totals.saldo)}`,
@@ -844,7 +1147,8 @@ function exportPdf() {
     ...items.slice(0, 35).map((item) => {
       const parcela = item.parcelasTotal ? ` ${item.parcelaNumero}/${item.parcelasTotal}` : "";
       const sign = item.tipo === "entrada" ? "+" : "-";
-      return `${formatDate(item.dataOperacao)} | ${item.tipo}${parcela} | ${sign}${money.format(item.valor)} | ${item.nota}`;
+      const conversa = item.tipo === "saida" ? ` | ${conversaTitulo(itemConversaId(item))}` : "";
+      return `${formatDate(item.dataOperacao)} | ${item.tipo}${parcela}${conversa} | ${sign}${money.format(item.valor)} | ${item.nota}`;
     }),
   ];
   downloadBlob(makePdf(lines), `meu-caixa-relatorio-${toDateInputValue(today())}.pdf`);
@@ -864,7 +1168,13 @@ function bindEvents() {
     });
   });
 
-  els.backButton.addEventListener("click", () => navigate("home"));
+  els.backButton.addEventListener("click", () => {
+    if (state.currentScreen === "launch" && state.activeLaunchType === "saida") {
+      navigate("expenseConversations");
+      return;
+    }
+    navigate("home");
+  });
 
   els.entryForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -874,8 +1184,17 @@ function bindEvents() {
     createFromChat(text);
   });
 
-  [els.filterStart, els.filterEnd, els.filterType].forEach((input) => {
+  [els.filterStart, els.filterEnd, els.filterType, els.filterConversation].forEach((input) => {
     input.addEventListener("change", renderReport);
+  });
+
+  els.newConversationButton.addEventListener("click", () => els.conversationDialog.showModal());
+  els.closeConversationDialog.addEventListener("click", () => els.conversationDialog.close());
+  els.conversationDialog.addEventListener("click", (event) => {
+    if (event.target === els.conversationDialog) els.conversationDialog.close();
+  });
+  els.conversationForm.addEventListener("submit", (event) => {
+    createConversationFromForm(event).catch(() => alert("Nao consegui criar essa conversa."));
   });
 
   els.openEditFilters.addEventListener("click", () => els.editFilterDialog.showModal());
@@ -905,10 +1224,16 @@ function bindEvents() {
   els.editDialog.addEventListener("click", (event) => {
     if (event.target === els.editDialog) closeEditDialog();
   });
+  els.deleteSavedEdit.addEventListener("click", () => {
+    deleteEditedLancamento().catch(() => alert("Nao consegui excluir esse lancamento."));
+  });
   els.cancelSavedEdit.addEventListener("click", closeEditDialog);
   els.pdfButton.addEventListener("click", exportPdf);
   els.backupButton.addEventListener("click", () => els.backupDialog.showModal());
   els.exportBackupButton.addEventListener("click", exportBackup);
+  els.clearDataButton.addEventListener("click", () => {
+    clearAllData().catch(() => alert("Nao consegui limpar os dados."));
+  });
   els.importBackupInput.addEventListener("change", async () => {
     const file = els.importBackupInput.files?.[0];
     if (!file) return;
@@ -924,13 +1249,20 @@ function bindEvents() {
 }
 
 async function init() {
-  state.db = await openDb();
-  state.lancamentos = await getAllLancamentos();
+  state.conversas = await getAllConversas();
   setDefaultFilters();
   bindEvents();
   updateEditFilterSummary();
   refresh();
   renderMessages();
+
+  try {
+    state.db = await openDb();
+    state.lancamentos = await getAllLancamentos();
+    refresh();
+  } catch {
+    els.screenSubtitle.textContent = "Nao consegui abrir os dados salvos neste navegador.";
+  }
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
