@@ -66,10 +66,16 @@ const els = {
   messages: document.querySelector("#messages"),
   entryForm: document.querySelector("#entryForm"),
   entryInput: document.querySelector("#entryInput"),
+  openReportFilters: document.querySelector("#openReportFilters"),
+  reportFilterSummary: document.querySelector("#reportFilterSummary"),
+  reportFilterDialog: document.querySelector("#reportFilterDialog"),
+  closeReportFilterDialog: document.querySelector("#closeReportFilterDialog"),
+  reportFilterForm: document.querySelector("#reportFilterForm"),
   filterStart: document.querySelector("#filterStart"),
   filterEnd: document.querySelector("#filterEnd"),
   filterType: document.querySelector("#filterType"),
   filterConversation: document.querySelector("#filterConversation"),
+  clearReportFilters: document.querySelector("#clearReportFilters"),
   reportIncome: document.querySelector("#reportIncome"),
   reportExpense: document.querySelector("#reportExpense"),
   reportBalance: document.querySelector("#reportBalance"),
@@ -686,6 +692,22 @@ function renderConversationFilter() {
   els.filterConversation.value = options.some((option) => option.value === selected) ? selected : "todas";
 }
 
+function updateReportFilterSummary() {
+  const parts = [];
+  const typeText = els.filterType.options[els.filterType.selectedIndex]?.text || "Todos";
+  const conversaText = els.filterConversation.options[els.filterConversation.selectedIndex]?.text || "Todas";
+
+  if (els.filterStart.value || els.filterEnd.value) {
+    const start = els.filterStart.value ? formatDate(els.filterStart.value) : "inicio";
+    const end = els.filterEnd.value ? formatDate(els.filterEnd.value) : "hoje";
+    parts.push(`${start} ate ${end}`);
+  }
+  if (els.filterType.value !== "todos") parts.push(typeText);
+  if (els.filterConversation.value !== "todas") parts.push(`Conversa: ${conversaText}`);
+
+  els.reportFilterSummary.textContent = parts.length ? parts.join(" · ") : "Todos os lancamentos";
+}
+
 function sortedLancamentos() {
   return [...state.lancamentos].sort((a, b) => {
     const byDate = b.dataOperacao.localeCompare(a.dataOperacao);
@@ -1012,6 +1034,7 @@ async function deleteEditedLancamento() {
 
 function refresh() {
   renderConversationFilter();
+  updateReportFilterSummary();
   renderMonthCard();
   renderReport();
   renderEditList();
@@ -1184,8 +1207,25 @@ function bindEvents() {
     createFromChat(text);
   });
 
-  [els.filterStart, els.filterEnd, els.filterType, els.filterConversation].forEach((input) => {
-    input.addEventListener("change", renderReport);
+  els.openReportFilters.addEventListener("click", () => els.reportFilterDialog.showModal());
+  els.closeReportFilterDialog.addEventListener("click", () => els.reportFilterDialog.close());
+  els.reportFilterDialog.addEventListener("click", (event) => {
+    if (event.target === els.reportFilterDialog) els.reportFilterDialog.close();
+  });
+  els.reportFilterForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    updateReportFilterSummary();
+    renderReport();
+    els.reportFilterDialog.close();
+  });
+  els.clearReportFilters.addEventListener("click", () => {
+    els.filterStart.value = "";
+    els.filterEnd.value = "";
+    els.filterType.value = "todos";
+    els.filterConversation.value = "todas";
+    updateReportFilterSummary();
+    renderReport();
+    els.reportFilterDialog.close();
   });
 
   els.newConversationButton.addEventListener("click", () => els.conversationDialog.showModal());
@@ -1252,6 +1292,7 @@ async function init() {
   state.conversas = await getAllConversas();
   setDefaultFilters();
   bindEvents();
+  updateReportFilterSummary();
   updateEditFilterSummary();
   refresh();
   renderMessages();

@@ -97,29 +97,9 @@
             <h2>Resumo por periodo</h2>
           </div>
           <div class="report-panel">
-            <div class="filters">
-              <label>
-                Inicio
-                <input id="filterStart" type="date" />
-              </label>
-              <label>
-                Fim
-                <input id="filterEnd" type="date" />
-              </label>
-              <label>
-                Tipo
-                <select id="filterType">
-                  <option value="todos">Todos</option>
-                  <option value="entrada">Entrada</option>
-                  <option value="saida">Saida</option>
-                </select>
-              </label>
-              <label>
-                Conversa
-                <select id="filterConversation">
-                  <option value="todas">Todas</option>
-                </select>
-              </label>
+            <div class="report-toolbar">
+              <button class="small-button" id="openReportFilters" type="button">Filtros</button>
+              <span id="reportFilterSummary">Mes atual, todos os tipos</span>
             </div>
 
             <div class="report-summary">
@@ -173,6 +153,48 @@
             <input id="conversationTitleInput" placeholder="Ex: Obra, casa, carro" required />
           </label>
           <button class="primary-button" type="submit">Criar conversa</button>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog class="app-dialog filter-dialog" id="reportFilterDialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <span>Relatorio</span>
+            <h2>Filtros</h2>
+          </div>
+          <button class="icon-button" id="closeReportFilterDialog" aria-label="Fechar" type="button">x</button>
+        </div>
+        <form class="filter-form" id="reportFilterForm">
+          <div class="filters edit-filters">
+            <label>
+              Inicio
+              <input id="filterStart" type="date" />
+            </label>
+            <label>
+              Fim
+              <input id="filterEnd" type="date" />
+            </label>
+            <label>
+              Tipo
+              <select id="filterType">
+                <option value="todos">Todos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saida</option>
+              </select>
+            </label>
+            <label>
+              Conversa
+              <select id="filterConversation">
+                <option value="todas">Todas</option>
+              </select>
+            </label>
+          </div>
+          <div class="edit-actions">
+            <button class="primary-button" type="submit">Filtrar</button>
+            <button class="small-button" id="clearReportFilters" type="button">Limpar</button>
+          </div>
         </form>
       </div>
     </dialog>
@@ -293,6 +315,6 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=25" defer></script>
+    <script src="./app.js?v=26" defer></script>
   </body>
 </html>

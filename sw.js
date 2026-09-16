@@ -1,9 +1,9 @@
-const CACHE_NAME = "meu-caixa-v25";
+const CACHE_NAME = "meu-caixa-v26";
 const APP_SHELL = "/index.html";
 const ASSETS = [
   APP_SHELL,
   "/styles.css?v=12",
-  "/app.js?v=25",
+  "/app.js?v=26",
   "/manifest.webmanifest",
   "/favicon.svg",
   "/icon.svg",

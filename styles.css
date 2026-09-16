@@ -486,6 +486,7 @@ button {
   gap: 14px;
 }
 
+.report-toolbar,
 .edit-toolbar {
   align-items: center;
   display: flex;
@@ -493,6 +494,7 @@ button {
   justify-content: space-between;
 }
 
+.report-toolbar span,
 .edit-toolbar span {
   color: var(--muted);
   flex: 1;
@@ -775,6 +777,17 @@ button {
   .conversation-toolbar {
     align-items: stretch;
     display: grid;
+  }
+
+  .report-toolbar,
+  .edit-toolbar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .report-toolbar span,
+  .edit-toolbar span {
+    text-align: left;
   }
 
   .conversation-toolbar p {
